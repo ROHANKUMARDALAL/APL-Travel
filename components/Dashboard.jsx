@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import ServiceSearch from "@/components/ServiceSearch";
 import ServiceOffers from "@/components/ServiceOffers";
+import BrandStrip from "@/components/BrandStrip";
+import TravelNotes from "@/components/TravelNotes";
 import Testimonials from "@/components/Testimonials";
 import Footer from "@/components/Footer";
-import { FOOTER } from "@/data/static";
+import { AIRLINE_BRANDS, FOOTER, PARTNER_BRANDS } from "@/data/static";
 import {
   normalizeService,
   parseBusSearchParams,
@@ -40,10 +42,14 @@ export default function Dashboard() {
     if (activeService === "flight" && searchParams.get("from")) {
       const parsed = parseFlightSearchParams(searchParams);
       return {
+        tripType: parsed.tripType,
         from: parsed.from,
         to: parsed.to,
+        originCityCode: parsed.originCityCode,
+        destinationCityCode: parsed.destinationCityCode,
         departDate: parsed.departDate,
         returnDate: parsed.returnDate,
+        legs: parsed.legs,
         travellers: {
           adults: parsed.adults,
           children: parsed.children,
@@ -112,7 +118,21 @@ export default function Dashboard() {
         onServiceChange={onServiceChange}
         initialValues={searchInitialValues}
       />
+      {activeService === "flight" ? (
+        <BrandStrip
+          eyebrow="Airlines"
+          title="Carriers you can fly with"
+          items={AIRLINE_BRANDS}
+        />
+      ) : null}
       <ServiceOffers activeService={activeService} />
+      <TravelNotes />
+      <BrandStrip
+        eyebrow="Partners"
+        title="Teams behind the journey"
+        items={PARTNER_BRANDS}
+        variant="cards"
+      />
       <Testimonials />
       <Footer />
     </div>

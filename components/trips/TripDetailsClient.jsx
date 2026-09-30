@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountShell from "@/components/account/AccountShell";
@@ -7,10 +8,10 @@ import { findResultById, BOOKING_EXTRAS, getHotelRooms } from "@/lib/booking";
 import { saveConfirmation } from "@/lib/confirmation";
 import {
   bookingStatusLabel,
-  getBookingByReference,
   getBookingDateLabel,
   getBookingHeadline,
   getTravellerDisplayName,
+  loadAccountBooking,
   paymentStatusLabel,
 } from "@/lib/userBookings";
 import { formatShortDate } from "@/lib/resultsHelpers";
@@ -26,8 +27,32 @@ function statusClass(booking) {
 export default function TripDetailsClient({ reference }) {
   const router = useRouter();
   const { user } = useAuth();
-  const booking = getBookingByReference(reference);
+  const [booking, setBooking] = useState(null);
+  const [ready, setReady] = useState(false);
   const marketId = getActiveMarketId();
+
+  useEffect(() => {
+    let ignore = false;
+    setReady(false);
+    loadAccountBooking(reference)
+      .then((row) => {
+        if (!ignore) setBooking(row);
+      })
+      .finally(() => {
+        if (!ignore) setReady(true);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [reference, user?.id]);
+
+  if (!ready) {
+    return (
+      <AccountShell title="Booking">
+        <p className="section-copy">Loading this booking…</p>
+      </AccountShell>
+    );
+  }
 
   if (!booking) {
     return (
@@ -51,6 +76,7 @@ export default function TripDetailsClient({ reference }) {
   }
 
   if (
+    !booking.customerId &&
     user?.email &&
     booking.contact?.email &&
     user.email.toLowerCase() !== booking.contact.email.toLowerCase()

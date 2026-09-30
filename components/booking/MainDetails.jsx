@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { formatDuration, formatPriceParts, formatShortDate } from "@/lib/resultsHelpers";
-import { formatMoney, getActiveMarketId, getActiveCurrencyCode } from "@/data/markets";
+import { formatMoney, getActiveMarketId, getActiveCurrencyCode, convertAmount } from "@/data/markets";
 import { BUS_SEAT_MAP, BUS_TAKEN_SEATS } from "@/lib/booking";
 
 export function FlightMainDetails({ item, searchQuery }) {
@@ -31,6 +31,7 @@ export function FlightMainDetails({ item, searchQuery }) {
       </div>
 
       <div className="itinerary-card">
+        <p className="flight-leg-label">{item.returnLeg ? "Depart" : "Flight"}</p>
         <div className="flight-timeline">
           <div>
             <p className="flight-time">{item.from.time}</p>
@@ -52,6 +53,34 @@ export function FlightMainDetails({ item, searchQuery }) {
             </p>
           </div>
         </div>
+        {item.returnLeg ? (
+          <div className="flight-leg flight-leg-details">
+            <p className="flight-leg-label">Return · {item.returnLeg.airline}</p>
+            <div className="flight-timeline">
+              <div>
+                <p className="flight-time">{item.returnLeg.from.time}</p>
+                <p className="flight-code">
+                  {item.returnLeg.from.code} · {item.returnLeg.from.city}
+                </p>
+              </div>
+              <div className="flight-duration-wrap">
+                <p className="flight-duration">{formatDuration(item.returnLeg.durationMinutes)}</p>
+                <div className="flight-line" aria-hidden="true" />
+                <p className="flight-stops">
+                  {item.returnLeg.stops === 0
+                    ? "Non-stop"
+                    : item.returnLeg.stopLabel || `${item.returnLeg.stops} stop`}
+                </p>
+              </div>
+              <div>
+                <p className="flight-time">{item.returnLeg.to.time}</p>
+                <p className="flight-code">
+                  {item.returnLeg.to.code} · {item.returnLeg.to.city}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <dl className="detail-facts">
@@ -132,9 +161,16 @@ export function HotelMainDetails({
       <h2 className="booking-subsection-title">Choose your room</h2>
       <div className="room-options">
         {rooms.map((room) => {
-          const currency = getActiveCurrencyCode(marketId);
-          const roomPrice =
-            room.prices?.[currency] || room.prices?.USD || room.prices?.GBP;
+          const display = getActiveCurrencyCode(marketId);
+          const sourceCurrency =
+            (room.prices?.INR && "INR") ||
+            (room.prices?.USD && "USD") ||
+            (room.prices?.GBP && "GBP") ||
+            Object.keys(room.prices || {})[0] ||
+            "INR";
+          const roomPrice = room.prices?.[sourceCurrency];
+          const guests = Math.max(1, Number(item.paxCount) || 1);
+          const nightly = convertAmount(roomPrice?.total || 0, sourceCurrency, display) * guests;
           const selected = room.id === selectedRoomId;
           return (
             <label
@@ -156,10 +192,11 @@ export function HotelMainDetails({
               </div>
               <div className="room-option-price">
                 <p className="price-total">
-                  {formatMoney((roomPrice?.total || 0) * nights, marketId)}
+                  {formatMoney(nightly * nights, marketId, display)}
                 </p>
                 <p className="price-breakdown">
-                  {formatMoney(roomPrice?.total || 0, marketId)} / night incl. taxes
+                  {formatMoney(nightly, marketId, display)} / night
+                  {guests > 1 ? ` · ${guests} guests` : ""} incl. taxes
                 </p>
               </div>
             </label>

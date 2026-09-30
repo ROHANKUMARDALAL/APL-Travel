@@ -1,5 +1,6 @@
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
+import CurrencySync from "@/components/CurrencySync";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -22,7 +23,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} h-full`}>
-      <body className="site-shell antialiased">{children}</body>
+      <body className="site-shell antialiased">
+        <CurrencySync>{children}</CurrencySync>
+      </body>
     </html>
   );
 }

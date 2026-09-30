@@ -113,24 +113,6 @@ export default function PaymentMethods({
             />
             {errors.name ? <p className="field-error">{errors.name}</p> : null}
           </div>
-          <div className="search-field">
-            <label className="field-label" htmlFor="card-country">
-              Billing country
-            </label>
-            <select
-              id="card-country"
-              className={`field-select ${errors.country ? "is-invalid" : ""}`}
-              value={card.country}
-              onChange={(e) => onCardChange({ ...card, country: e.target.value })}
-            >
-              <option value="">Select</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="CA">Canada</option>
-              <option value="IE">Ireland</option>
-            </select>
-            {errors.country ? <p className="field-error">{errors.country}</p> : null}
-          </div>
         </div>
       ) : (
         <p className="wallet-alt-note">

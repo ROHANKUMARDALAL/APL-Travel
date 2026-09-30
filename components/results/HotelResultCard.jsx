@@ -46,13 +46,14 @@ export default function HotelResultCard({ item, detailsHref, nights = 1 }) {
       </div>
 
       <div className="result-card-price hotel-card-price">
-        <p className="price-total">{formatMoney(stayTotal, marketId)}</p>
+        <p className="price-total">{formatMoney(stayTotal, marketId, price.currency)}</p>
         <p className="price-per-night">
-          {price.totalLabel} / night · incl. taxes
+          {price.totalLabel} / night
+          {price.pax > 1 ? ` · ${price.pax} guests` : ""} · incl. taxes
         </p>
         <p className="price-breakdown">
           {stayNights} night{stayNights === 1 ? "" : "s"} ·{" "}
-          {formatMoney(stayTaxes, marketId)} taxes
+          {formatMoney(stayTaxes, marketId, price.currency)} taxes
         </p>
         <p className="price-fee-note">Booking fees may apply at checkout</p>
         <Link className="btn-primary result-card-cta" href={detailsHref}>

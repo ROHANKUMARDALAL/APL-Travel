@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import DatePicker, { addDays, today } from "@/components/ui/DatePicker";
 import RoomGuestPicker from "@/components/ui/RoomGuestPicker";
+import LocationSuggest from "@/components/ui/LocationSuggest";
 import { isBeforeDay, startOfDay } from "@/lib/dateUtils";
 import { buildHotelSearchQuery } from "@/lib/searchQuery";
+import { searchHotelCities } from "@/lib/api/search";
 
 export default function HotelSearchForm({ onSearchChange, initialValues }) {
-  const [city, setCity] = useState(() => initialValues?.destination || "London");
+  const [city, setCity] = useState(() => initialValues?.destination || "New Delhi");
+  const [cityCode, setCityCode] = useState(() => initialValues?.cityCode || "130443");
   const [checkIn, setCheckIn] = useState(
     () => initialValues?.checkInDate || today(),
   );
@@ -18,17 +21,29 @@ export default function HotelSearchForm({ onSearchChange, initialValues }) {
     () => initialValues?.occupancy || { guests: 2, rooms: 1 },
   );
 
+  const loadCities = useCallback(async (query) => {
+    const cities = await searchHotelCities(query);
+    return cities.map((entry) => ({
+      id: entry.cityCode,
+      code: entry.cityCode,
+      title: entry.cityName,
+      subtitle: [entry.state, entry.country].filter(Boolean).join(", "),
+      city: entry,
+    }));
+  }, []);
+
   useEffect(() => {
     onSearchChange?.(
       buildHotelSearchQuery({
         destination: city,
+        cityCode,
         checkInDate: checkIn,
         checkOutDate: checkOut,
         guests: occupancy.guests,
         rooms: occupancy.rooms,
       }),
     );
-  }, [city, checkIn, checkOut, occupancy, onSearchChange]);
+  }, [city, cityCode, checkIn, checkOut, occupancy, onSearchChange]);
 
   function handleCheckInChange(next) {
     const clamped = isBeforeDay(next, today()) ? today() : startOfDay(next);
@@ -47,19 +62,21 @@ export default function HotelSearchForm({ onSearchChange, initialValues }) {
 
   return (
     <div className="search-form-grid hotel-form-grid">
-      <div className="search-field">
-        <label className="field-label" htmlFor="hotel-city">
-          Destination
-        </label>
-        <input
-          id="hotel-city"
-          className="field-input"
-          type="text"
-          value={city}
-          placeholder="London"
-          onChange={(event) => setCity(event.target.value)}
-        />
-      </div>
+      <LocationSuggest
+        id="hotel-city"
+        label="Destination"
+        value={city}
+        placeholder="New Delhi"
+        fetchOptions={loadCities}
+        onTextChange={(text) => {
+          setCity(text);
+          setCityCode("");
+        }}
+        onSelect={(option) => {
+          setCity(option.city.cityName);
+          setCityCode(option.city.cityCode);
+        }}
+      />
 
       <DatePicker
         id="hotel-checkin"

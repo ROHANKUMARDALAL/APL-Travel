@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import SiteChrome from "@/components/layout/SiteChrome";
 import { useAuth } from "@/components/auth/useAuth";
@@ -14,7 +14,7 @@ import {
   submitBookingSupportRequest,
   submitContactRequest,
 } from "@/lib/support";
-import { listBookings, getBookingHeadline } from "@/lib/userBookings";
+import { getBookingHeadline, loadAccountBookings } from "@/lib/userBookings";
 import { findResultById } from "@/lib/booking";
 import { FOOTER } from "@/data/static";
 
@@ -222,10 +222,24 @@ function ContactSection() {
 }
 
 function BookingHelpSection({ user }) {
-  const bookings = useMemo(
-    () => (user?.email ? listBookings({ email: user.email }) : []),
-    [user?.email],
-  );
+  const [bookings, setBookings] = useState([]);
+  useEffect(() => {
+    let ignore = false;
+    if (!user?.id) {
+      setBookings([]);
+      return undefined;
+    }
+    loadAccountBookings()
+      .then((rows) => {
+        if (!ignore) setBookings(rows);
+      })
+      .catch(() => {
+        if (!ignore) setBookings([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [user?.id]);
   const issues = listBookingIssueTypes();
   const [bookingReference, setBookingReference] = useState("");
   const [issueType, setIssueType] = useState("");

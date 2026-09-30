@@ -3,15 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FOOTER, NAV_LINKS, SERVICES } from "@/data/static";
+import { FOOTER, SERVICES } from "@/data/static";
 import ServiceIcon from "@/components/ServiceIcon";
 import { normalizeService } from "@/lib/searchQuery";
 import { useAuth } from "@/components/auth/useAuth";
-import { logout } from "@/lib/auth";
-import {
-  getActiveCurrencyCode,
-  getLanguage,
-} from "@/data/markets";
+import AuthModal from "@/components/auth/AuthModal";
+import CurrencyMenu from "@/components/header/CurrencyMenu";
 
 /**
  * Global site header — shared across homepage, results, details, checkout, account.
@@ -29,9 +26,9 @@ export default function Header({
   const pathname = usePathname();
   const isHome = pathname === "/";
   const { ready, authenticated, user } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
   const forceLight = variant === "portal";
-  const light = forceLight || scrolled;
-  const localeHint = `${String(getLanguage() || "en").toUpperCase()} · ${getActiveCurrencyCode()}`;
+  const pinned = !forceLight && scrolled;
 
   useEffect(() => {
     if (forceLight) return undefined;
@@ -63,13 +60,8 @@ export default function Header({
     }
   }
 
-  function handleLogout() {
-    logout();
-    router.push("/");
-  }
-
   const serviceActive = (serviceId) => {
-    if (isHome) return serviceId === activeService;
+    if (activeService) return serviceId === activeService;
     if (pathname.startsWith("/flights") && serviceId === "flight") return true;
     if (pathname.startsWith("/hotels") && serviceId === "hotel") return true;
     if (pathname.startsWith("/buses") && serviceId === "bus") return true;
@@ -78,8 +70,8 @@ export default function Header({
 
   return (
     <header
-      className={`site-header ${light ? "site-header-scrolled" : ""} ${
-        forceLight ? "site-header-portal" : ""
+      className={`site-header ${pinned ? "site-header-pinned" : ""} ${
+        forceLight ? "site-header-portal site-header-scrolled" : ""
       }`}
     >
       <div className="container-page site-header-inner">
@@ -110,61 +102,25 @@ export default function Header({
         )}
 
         <div className="header-actions">
-          {secureLabel ? (
-            <p className="header-secure-label">{secureLabel}</p>
-          ) : null}
-          <span
-            className="header-locale-hint"
-            title="Language and currency selectors coming soon"
-          >
-            {localeHint}
-          </span>
-          <Link
-            className="header-util-link hidden md:inline-flex"
-            href={NAV_LINKS.findBooking.href}
-          >
-            {NAV_LINKS.findBooking.label}
-          </Link>
-          <Link
-            className="header-util-link hidden md:inline-flex"
-            href={NAV_LINKS.myTrips.href}
-          >
-            {NAV_LINKS.myTrips.label}
-          </Link>
-          <Link
-            className="header-util-link hidden md:inline-flex"
-            href={NAV_LINKS.support.href}
-          >
-            {NAV_LINKS.support.label}
-          </Link>
+          {secureLabel ? <p className="header-secure-label">{secureLabel}</p> : null}
+          <CurrencyMenu />
           {ready && authenticated ? (
-            <Link
-              className="header-util-link hidden sm:inline-flex header-account-link"
-              href="/account"
-            >
+            <Link className="header-profile" href="/account" aria-label="View profile">
               <span className="header-avatar" aria-hidden="true">
                 {user?.initials}
               </span>
-              {user?.name?.split(" ")[0] || "Account"}
             </Link>
           ) : (
-            <Link
-              className="header-util-link hidden sm:inline-flex"
-              href={NAV_LINKS.signIn.href}
-            >
-              {NAV_LINKS.signIn.label}
-            </Link>
+            <button type="button" className="header-signin" onClick={() => setAuthOpen(true)}>
+              Sign in
+            </button>
           )}
-          {!secureLabel ? (
-            <Link
-              className="btn-secondary hidden lg:inline-flex"
-              href={isHome ? "#search" : "/#search"}
-            >
-              {NAV_LINKS.planTrip.label}
-            </Link>
-          ) : null}
+          <Link className="header-bookings" href="/my-trips">
+            My bookings
+          </Link>
         </div>
       </div>
+      {authOpen ? <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} /> : null}
     </header>
   );
 }

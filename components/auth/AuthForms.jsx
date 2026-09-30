@@ -4,14 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login, signUp } from "@/lib/auth";
-import { DEMO_AUTH_EMAIL } from "@/data/mock/user";
+import { listCurrencies } from "@/data/markets";
+import PasswordField from "@/components/auth/PasswordField";
+import CaptchaField, { useCaptcha } from "@/components/auth/CaptchaField";
 
 function safeNextPath(next) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/my-trips";
   return next;
 }
 
-export default function AuthForms({ initialMode = "login" }) {
+export default function AuthForms({ initialMode = "login", onSuccess = null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeNextPath(searchParams.get("next"));
@@ -19,6 +21,7 @@ export default function AuthForms({ initialMode = "login" }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const captcha = useCaptcha();
   const [loginForm, setLoginForm] = useState({
     email: "",
     password: "",
@@ -28,34 +31,61 @@ export default function AuthForms({ initialMode = "login" }) {
     email: "",
     phone: "",
     password: "",
+    currency: "INR",
   });
+  const currencies = listCurrencies()
+    .slice()
+    .sort((a, b) => {
+      if (a.code === "INR") return -1;
+      if (b.code === "INR") return 1;
+      return a.label.localeCompare(b.label);
+    });
 
   function switchMode(nextMode) {
     setMode(nextMode);
     setError("");
   }
 
-  function handleLogin(event) {
+  async function handleLogin(event) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
-    const result = login(loginForm.email, loginForm.password);
+    const result = await login({
+      email: loginForm.email,
+      password: loginForm.password,
+      captchaId: captcha.captcha?.captchaId,
+      captchaAnswer: captcha.answer,
+    });
     setSubmitting(false);
     if (!result.ok) {
       setError(result.message);
+      captcha.refresh();
+      return;
+    }
+    if (onSuccess) {
+      onSuccess(result.user);
       return;
     }
     router.replace(nextPath);
   }
 
-  function handleSignUp(event) {
+  async function handleSignUp(event) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
-    const result = signUp(signUpForm);
+    const result = await signUp({
+      ...signUpForm,
+      captchaId: captcha.captcha?.captchaId,
+      captchaAnswer: captcha.answer,
+    });
     setSubmitting(false);
     if (!result.ok) {
       setError(result.message);
+      captcha.refresh();
+      return;
+    }
+    if (onSuccess) {
+      onSuccess(result.user);
       return;
     }
     router.replace(nextPath);
@@ -86,7 +116,9 @@ export default function AuthForms({ initialMode = "login" }) {
 
       {mode === "login" ? (
         <form className="auth-form" onSubmit={handleLogin} noValidate>
-          <h1 className="section-title">Welcome back</h1>
+            <h1 className="section-title" id="auth-modal-title">
+              Welcome back
+            </h1>
           <p className="section-copy">
             Sign in to manage trips, wallet, and referrals.
           </p>
@@ -103,18 +135,23 @@ export default function AuthForms({ initialMode = "login" }) {
               }
             />
           </label>
-          <label className="search-field">
-            <span className="field-label">Password</span>
-            <input
-              className={`field-input ${error ? "is-invalid" : ""}`}
-              type="password"
-              autoComplete="current-password"
-              value={loginForm.password}
-              onChange={(e) =>
-                setLoginForm({ ...loginForm, password: e.target.value })
-              }
-            />
-          </label>
+          <PasswordField
+            label="Password"
+            autoComplete="current-password"
+            invalid={Boolean(error)}
+            value={loginForm.password}
+            onChange={(e) =>
+              setLoginForm({ ...loginForm, password: e.target.value })
+            }
+          />
+          <CaptchaField
+            captcha={captcha.captcha}
+            answer={captcha.answer}
+            onAnswer={captcha.setAnswer}
+            onRefresh={captcha.refresh}
+            loading={captcha.loading}
+            loadError={captcha.loadError}
+          />
 
           {error ? (
             <p className="field-error" role="alert">
@@ -129,16 +166,12 @@ export default function AuthForms({ initialMode = "login" }) {
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
-
-          <div className="auth-demo-hint">
-            <p className="field-label">Sample credentials</p>
-            <p className="dev-note">Email: {DEMO_AUTH_EMAIL}</p>
-            <p className="dev-note">Password: Test@123</p>
-          </div>
         </form>
       ) : (
         <form className="auth-form" onSubmit={handleSignUp} noValidate>
-          <h1 className="section-title">Create an account</h1>
+          <h1 className="section-title" id="auth-modal-title">
+            Create an account
+          </h1>
           <p className="section-copy">
             Create an account to save trips and manage your profile.
           </p>
@@ -179,17 +212,41 @@ export default function AuthForms({ initialMode = "login" }) {
             />
           </label>
           <label className="search-field">
-            <span className="field-label">Password</span>
-            <input
-              className="field-input"
-              type="password"
-              autoComplete="new-password"
-              value={signUpForm.password}
+            <span className="field-label">Currency</span>
+            <select
+              className="field-select"
+              value={signUpForm.currency}
               onChange={(e) =>
-                setSignUpForm({ ...signUpForm, password: e.target.value })
+                setSignUpForm({ ...signUpForm, currency: e.target.value })
               }
-            />
+            >
+              {currencies.map((currency) => (
+                <option key={currency.code} value={currency.code}>
+                  {currency.flag} {currency.code} · {currency.label}
+                </option>
+              ))}
+            </select>
           </label>
+          <p className="dev-note">
+            Profile, searches, and payment stay in this currency.
+          </p>
+          <PasswordField
+            label="Password"
+            autoComplete="new-password"
+            invalid={Boolean(error)}
+            value={signUpForm.password}
+            onChange={(e) =>
+              setSignUpForm({ ...signUpForm, password: e.target.value })
+            }
+          />
+          <CaptchaField
+            captcha={captcha.captcha}
+            answer={captcha.answer}
+            onAnswer={captcha.setAnswer}
+            onRefresh={captcha.refresh}
+            loading={captcha.loading}
+            loadError={captcha.loadError}
+          />
 
           {error ? (
             <p className="field-error" role="alert">

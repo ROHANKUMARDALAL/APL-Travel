@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SERVICES } from "@/data/static";
 import ServiceIcon from "@/components/ServiceIcon";
@@ -22,6 +22,7 @@ export default function ServiceSearch({
 }) {
   const router = useRouter();
   const searchQueryRef = useRef(null);
+  const [formError, setFormError] = useState("");
 
   const handleSearchChange = useCallback((query) => {
     searchQueryRef.current = query;
@@ -29,7 +30,13 @@ export default function ServiceSearch({
 
   function handleSubmit(event) {
     event.preventDefault();
-    const href = buildResultsHref(activeService, searchQueryRef.current);
+    const query = searchQueryRef.current;
+    if (query?.error) {
+      setFormError(query.error);
+      return;
+    }
+    setFormError("");
+    const href = buildResultsHref(activeService, query);
     router.push(href);
   }
 
@@ -66,15 +73,18 @@ export default function ServiceSearch({
               })}
             </div>
 
-            <h2 className="search-service-title">
-              {SERVICE_TITLES[activeService]}{" "}
-              <span>· {activeService}</span>
-            </h2>
+            {activeService === "flight" ? null : (
+              <h2 className="search-service-title">
+                {SERVICE_TITLES[activeService]}{" "}
+                <span>· {activeService}</span>
+              </h2>
+            )}
 
             <form onSubmit={handleSubmit}>
               {activeService === "flight" && (
                 <FlightSearchForm
                   key={formKey}
+                  heading="Search flights"
                   initialValues={initialValues}
                   onSearchChange={handleSearchChange}
                 />
@@ -95,8 +105,8 @@ export default function ServiceSearch({
               )}
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-[var(--ink-muted)]">
-                  Results update with your filters and travel dates.
+                <p className={`text-sm ${formError ? "field-error" : "text-[var(--ink-muted)]"}`}>
+                  {formError || "Results update with your filters and travel dates."}
                 </p>
                 <button type="submit" className="btn-primary min-w-[160px]">
                   Search {activeService}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AccountShell from "@/components/account/AccountShell";
 import { useAuth } from "@/components/auth/useAuth";
@@ -7,17 +8,31 @@ import { findResultById } from "@/lib/booking";
 import {
   getBookingDateLabel,
   getBookingHeadline,
-  listBookings,
+  loadAccountBookings,
 } from "@/lib/userBookings";
 import { formatShortDate } from "@/lib/resultsHelpers";
-import { getActiveMarketId } from "@/data/markets";
+import { getActiveMarketId, listCurrencies } from "@/data/markets";
 import { getWalletSummary } from "@/lib/wallet";
 import { getReferralProfile } from "@/lib/referral";
-
 export default function ProfileClient() {
   const { user } = useAuth();
   const marketId = getActiveMarketId();
-  const upcoming = listBookings({ email: user?.email, phase: "upcoming" })[0];
+  const currencyCode = user?.currency || "INR";
+  const [upcoming, setUpcoming] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    loadAccountBookings()
+      .then((rows) => {
+        if (!ignore) setUpcoming(rows.find((row) => row.tripPhase === "upcoming") || null);
+      })
+      .catch(() => {
+        if (!ignore) setUpcoming(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [user?.id]);
   const upcomingItem = upcoming
     ? findResultById(upcoming.service, upcoming.id)
     : null;
@@ -135,6 +150,19 @@ export default function ProfileClient() {
           <div>
             <dt>Phone</dt>
             <dd>{user?.phone || "—"}</dd>
+          </div>
+          <div>
+            <dt>Currency</dt>
+            <dd>
+              <p className="profile-currency-fixed">
+                {listCurrencies().find((currency) => currency.code === (user?.currency || currencyCode))?.flag}{" "}
+                {user?.currency || currencyCode} ·{" "}
+                {listCurrencies().find((currency) => currency.code === (user?.currency || currencyCode))?.label}
+              </p>
+              <p className="dev-note">
+                Chosen when you signed up. Your profile, searches, and payment stay in this currency.
+              </p>
+            </dd>
           </div>
           <div>
             <dt>Account type</dt>

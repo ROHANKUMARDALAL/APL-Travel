@@ -19,15 +19,15 @@
 
 /** Supported display currencies — catalog for a future Header selector. */
 export const CURRENCIES = {
-  USD: { code: "USD", label: "US Dollar", symbolHint: "$" },
-  GBP: { code: "GBP", label: "British Pound", symbolHint: "£" },
-  EUR: { code: "EUR", label: "Euro", symbolHint: "€" },
-  AED: { code: "AED", label: "UAE Dirham", symbolHint: "AED" },
-  INR: { code: "INR", label: "Indian Rupee", symbolHint: "₹" },
-  CAD: { code: "CAD", label: "Canadian Dollar", symbolHint: "CA$" },
-  AUD: { code: "AUD", label: "Australian Dollar", symbolHint: "A$" },
-  SGD: { code: "SGD", label: "Singapore Dollar", symbolHint: "S$" },
-  JPY: { code: "JPY", label: "Japanese Yen", symbolHint: "¥" },
+  USD: { code: "USD", label: "US Dollar", symbolHint: "$", flag: "🇺🇸" },
+  GBP: { code: "GBP", label: "British Pound", symbolHint: "£", flag: "🇬🇧" },
+  EUR: { code: "EUR", label: "Euro", symbolHint: "€", flag: "🇪🇺" },
+  AED: { code: "AED", label: "UAE Dirham", symbolHint: "AED", flag: "🇦🇪" },
+  INR: { code: "INR", label: "Indian Rupee", symbolHint: "₹", flag: "🇮🇳" },
+  CAD: { code: "CAD", label: "Canadian Dollar", symbolHint: "CA$", flag: "🇨🇦" },
+  AUD: { code: "AUD", label: "Australian Dollar", symbolHint: "A$", flag: "🇦🇺" },
+  SGD: { code: "SGD", label: "Singapore Dollar", symbolHint: "S$", flag: "🇸🇬" },
+  JPY: { code: "JPY", label: "Japanese Yen", symbolHint: "¥", flag: "🇯🇵" },
 };
 
 /** Currencies with mock price coverage in current static/demo data. */
@@ -88,11 +88,27 @@ export const DEFAULT_MARKET_ID = "us";
 
 let activeMarketId = DEFAULT_MARKET_ID;
 
+/** Indicative INR per 1 unit. Used only when the shopper switches display currency. */
+export const INR_PER_UNIT = {
+  INR: 1,
+  USD: 83.5,
+  GBP: 106,
+  EUR: 91,
+  AED: 22.75,
+  CAD: 61,
+  AUD: 55,
+  SGD: 63,
+  JPY: 0.56,
+};
+
+const CURRENCY_STORAGE_KEY = "apl-display-currency";
+export const CURRENCY_EVENT = "apl-currency-change";
+
 /**
- * Optional display-currency override (independent of market / destination).
- * null → follow the active market’s default currency.
+ * Display currency override. Inventory from the booking API is priced in INR.
+ * null is not used — INR is the default until the profile currency is changed.
  */
-let activeCurrencyOverride = null;
+let activeCurrencyOverride = "INR";
 
 export function getActiveMarketId() {
   return activeMarketId;
@@ -101,8 +117,6 @@ export function getActiveMarketId() {
 export function setActiveMarketId(marketId) {
   if (MARKETS[marketId]) {
     activeMarketId = marketId;
-    // Market change resets currency override so shoppers see that market’s default.
-    activeCurrencyOverride = null;
   }
   return activeMarketId;
 }
@@ -126,21 +140,67 @@ export function getMarketCurrency(marketId = activeMarketId) {
 }
 
 /**
- * Active display currency — may differ from market default once a Header
- * currency selector sets an override. Never derived from travel destination.
+ * Signed-in currency comes from the account document. Registered from lib/auth
+ * so this module does not import the session store.
+ */
+let readAccountCurrency = () => null;
+
+export function registerAccountCurrencyReader(reader) {
+  readAccountCurrency = typeof reader === "function" ? reader : () => null;
+}
+
+/**
+ * Active display currency. A signed-in account always wins over the guest
+ * header choice. Never derived from the travel destination.
  */
 export function getActiveCurrencyCode(marketId = activeMarketId) {
+  const accountCurrency = String(readAccountCurrency() || "").toUpperCase();
+  if (CURRENCIES[accountCurrency]) return accountCurrency;
   if (activeCurrencyOverride && CURRENCIES[activeCurrencyOverride]) {
     return activeCurrencyOverride;
   }
   return getMarketCurrency(marketId);
 }
 
+export function hydrateDisplayCurrency() {
+  if (typeof window === "undefined") return getActiveCurrencyCode();
+  try {
+    const stored = window.localStorage.getItem(CURRENCY_STORAGE_KEY);
+    if (stored && CURRENCIES[stored]) activeCurrencyOverride = stored;
+  } catch {
+    // ignore
+  }
+  return activeCurrencyOverride;
+}
+
 export function setActiveCurrency(currencyCode) {
   const code = String(currencyCode || "").toUpperCase();
   if (!CURRENCIES[code]) return getActiveCurrencyCode();
+  const changed = activeCurrencyOverride !== code;
   activeCurrencyOverride = code;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = window.localStorage.getItem(CURRENCY_STORAGE_KEY);
+      if (stored !== code) window.localStorage.setItem(CURRENCY_STORAGE_KEY, code);
+    } catch {
+      // ignore
+    }
+    if (changed) window.dispatchEvent(new Event(CURRENCY_EVENT));
+  }
   return activeCurrencyOverride;
+}
+
+export function convertAmount(amount, fromCurrency, toCurrency) {
+  const from = String(fromCurrency || "INR").toUpperCase();
+  const to = String(toCurrency || getActiveCurrencyCode()).toUpperCase();
+  const value = Number(amount) || 0;
+  if (!value || from === to) return value;
+  const fromRate = INR_PER_UNIT[from];
+  const toRate = INR_PER_UNIT[to];
+  if (!fromRate || !toRate) return value;
+  const converted = (value * fromRate) / toRate;
+  if (to === "INR" || to === "JPY") return Math.round(converted);
+  return Math.round(converted * 100) / 100;
 }
 
 export function clearActiveCurrencyOverride() {
@@ -170,7 +230,7 @@ export function pickPriceAmount(priceByCurrency, marketId = activeMarketId) {
 export function formatMoney(amount, marketId = activeMarketId, currencyCode) {
   const market = getMarket(marketId);
   const currency = currencyCode || getActiveCurrencyCode(marketId);
-  const fractionDigits = currency === "JPY" ? 0 : 0;
+  const fractionDigits = currency === "JPY" || currency === "INR" ? 0 : 2;
   return new Intl.NumberFormat(market.locale, {
     style: "currency",
     currency,
@@ -193,18 +253,11 @@ export function formatMoneyByCurrency(amount, currency, locale) {
 export function formatOfferPrice(priceByCurrency, options = {}) {
   const marketId = options.marketId || activeMarketId;
   const currency = getActiveCurrencyCode(marketId);
-  const amount = pickPriceAmount(priceByCurrency, marketId);
-  if (amount == null) return "";
-  // If we fell back to another currency’s amount, still label with preferred code
-  // only when that key exists; otherwise format with the currency we actually used.
-  const usedCurrency =
-    priceByCurrency?.[currency] != null
-      ? currency
-      : priceByCurrency?.USD != null
-        ? "USD"
-        : priceByCurrency?.GBP != null
-          ? "GBP"
-          : currency;
-  const formatted = formatMoney(amount, marketId, usedCurrency);
+  const sourceCode = ["INR", "USD", "GBP", "EUR"].find(
+    (code) => priceByCurrency?.[code] != null,
+  );
+  if (!sourceCode) return "";
+  const amount = convertAmount(priceByCurrency[sourceCode], sourceCode, currency);
+  const formatted = formatMoney(amount, marketId, currency);
   return options.suffix ? `${formatted}${options.suffix}` : formatted;
 }

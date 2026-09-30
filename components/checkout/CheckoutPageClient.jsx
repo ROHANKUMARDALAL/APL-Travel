@@ -15,12 +15,18 @@ import {
   findResultById,
   loadBookingDraft,
   nightsFromSearch,
+  saveBookingDraft,
 } from "@/lib/booking";
 import {
   calcCheckoutPayable,
   getWalletBalance,
 } from "@/lib/checkoutPricing";
 import { simulateMockPayment, validateCardFields } from "@/lib/mockPayment";
+import { bookFlightStay, bookHotelStay } from "@/lib/api/booking";
+import { applySavedTraveller, fetchSavedTravellers } from "@/lib/api/travellers";
+import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
+import { getCurrentUser } from "@/lib/auth";
+import { useAuth } from "@/components/auth/useAuth";
 import {
   clearBookingDraft,
   generateBookingReference,
@@ -52,7 +58,6 @@ export default function CheckoutPageClient() {
     expiry: "",
     cvv: "",
     name: "",
-    country: "",
   });
   const [forceFail, setForceFail] = useState(false);
   const [accepted, setAccepted] = useState({
@@ -63,13 +68,70 @@ export default function CheckoutPageClient() {
   const [errors, setErrors] = useState({});
   const [payError, setPayError] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [savedTravellers, setSavedTravellers] = useState([]);
+  const [picker, setPicker] = useState(null);
   const payingRef = useRef(false);
+  const { user: accountUser } = useAuth();
 
   useEffect(() => {
     const loaded = loadBookingDraft();
+    const user = getCurrentUser();
+    if (loaded && user) {
+      loaded.contact = {
+        email: loaded.contact?.email || user.email || "",
+        phone: loaded.contact?.phone || user.phone || "",
+      };
+      loaded.bookedForUserId = user.id;
+      saveBookingDraft(loaded);
+    }
     setDraft(loaded);
     setReady(true);
+    if (user) {
+      fetchSavedTravellers()
+        .then((rows) => setSavedTravellers(rows))
+        .catch(() => setSavedTravellers([]));
+    }
   }, []);
+
+  function chooseSavedTraveller(saved) {
+    if (!picker) return;
+    setDraft((prev) => {
+      if (!prev) return prev;
+      let next = prev;
+      if (picker.kind === "flight") {
+        next = {
+          ...prev,
+          travellers: (prev.travellers || []).map((person, index) =>
+            index === picker.index ? applySavedTraveller(person, saved) : person,
+          ),
+        };
+      } else if (picker.kind === "hotel") {
+        next = {
+          ...prev,
+          travellers: {
+            ...prev.travellers,
+            lead: {
+              ...(prev.travellers?.lead || {}),
+              firstName: saved.firstName || "",
+              lastName: saved.lastName || "",
+            },
+          },
+        };
+      } else {
+        next = {
+          ...prev,
+          travellers: {
+            ...prev.travellers,
+            firstName: saved.firstName || "",
+            lastName: saved.lastName || "",
+          },
+        };
+      }
+      saveBookingDraft(next);
+      return next;
+    });
+    setPicker(null);
+  }
 
   const service = draft?.service || searchParams.get("service") || "";
   const id = draft?.id || searchParams.get("id") || "";
@@ -177,6 +239,117 @@ export default function CheckoutPageClient() {
     setProcessing(true);
 
     try {
+      const signedInAccount = accountUser || getCurrentUser();
+      const signedInTrip = (service === "flight" || service === "hotel") && signedInAccount;
+      if (draft.apiBooking || signedInTrip) {
+        const lead = draft.travellers?.lead || {};
+        const extraGuests = (draft.travellers?.additional || [])
+          .filter((guest) => guest.firstName?.trim() && guest.lastName?.trim())
+          .map((guest) => ({
+            type: "ADULT",
+            title: "Mr",
+            firstName: guest.firstName.trim(),
+            lastName: guest.lastName.trim(),
+          }));
+        const cardNumber = String(card.number || "").replace(/\D/g, "");
+        const payment =
+          method === "card"
+            ? {
+                method: "CARD",
+                cardNumber: forceFail ? `${cardNumber.slice(0, -4)}0000` : cardNumber,
+              }
+            : { method: "NETBANKING" };
+        const accountBooking =
+          draft.apiBooking?.kind
+            ? draft.apiBooking
+            : service === "flight" && item?.searchId && item?.aplFareId && item?.quote
+              ? {
+                  kind: "flight",
+                  searchId: item.searchId,
+                  aplFlightId: item.id,
+                  aplFareId: item.aplFareId,
+                  quote: item.quote,
+                }
+              : service === "hotel" && item?.searchId && draft.selectedRoomId
+                ? {
+                    kind: "hotel",
+                    searchId: item.searchId,
+                    aplHotelId: item.id,
+                    aplRoomId: draft.selectedRoomId,
+                    quote: item.apiRooms?.find((room) => room.id === draft.selectedRoomId)?.quote,
+                  }
+                : null;
+        if ((service === "flight" || service === "hotel") && signedInAccount && !accountBooking?.quote) {
+          setPayError("This signed-in booking must be saved on your account. Search again, then pay.");
+          setProcessing(false);
+          payingRef.current = false;
+          return;
+        }
+        const isFlight = accountBooking?.kind === "flight" || Boolean(accountBooking?.aplFlightId);
+        const booked = isFlight
+          ? await bookFlightStay({
+                ...accountBooking,
+                passengerCount: Math.max(
+                  1,
+                  Number(item?.paxCount) || (draft.travellers || []).length || 1,
+                ),
+                contact: draft.contact,
+                travellers: (draft.travellers || []).map((person) => ({
+                  type: String(person.type || "adult").toUpperCase(),
+                  title: person.title || "Mr",
+                  firstName: person.firstName?.trim(),
+                  lastName: person.lastName?.trim(),
+                  dateOfBirth: person.dob || person.dateOfBirth,
+                  gender: person.gender,
+                  nationality: person.nationality || "IN",
+                  passportNumber: person.passport,
+                  passportExpiry: person.passportExpiry,
+                })),
+                payment,
+              })
+          : await bookHotelStay({
+                ...accountBooking,
+                contact: draft.contact,
+                guests: [
+                  {
+                    type: "ADULT",
+                    title: "Mr",
+                    firstName: lead.firstName?.trim(),
+                    lastName: lead.lastName?.trim(),
+                  },
+                  ...extraGuests,
+                ],
+                guestCount: Math.max(1, Number(item?.paxCount) || 1),
+                payment,
+              });
+        const reference = booked.aplBookingRef;
+        saveConfirmation({
+          reference,
+          service,
+          id: item.id,
+          searchQuery: draft.searchQuery,
+          travellers: draft.travellers,
+          contact: draft.contact,
+          extras: draft.extras || [],
+          selectedRoomId: draft.selectedRoomId || null,
+          selectedSeat: draft.selectedSeat || null,
+          payable,
+          payment: {
+            status: "paid",
+            method,
+            last4: payment.cardNumber ? payment.cardNumber.slice(-4) : null,
+            paidAt: new Date().toISOString(),
+          },
+          bookingStatus: "confirmed",
+          bookedForUserId: signedInAccount?.id || null,
+          airline: item.airline || "",
+          createdAt: new Date().toISOString(),
+        });
+        clearBookingDraft();
+        router.push(`/booking-confirmation?ref=${encodeURIComponent(reference)}`);
+        return;
+      }
+
       const result = await simulateMockPayment({
         method,
         card: method === "card" ? card : null,
@@ -209,6 +382,8 @@ export default function CheckoutPageClient() {
           paidAt: new Date().toISOString(),
         },
         bookingStatus: "confirmed",
+        bookedForUserId: signedInAccount?.id || null,
+        airline: item.airline || "",
         createdAt: new Date().toISOString(),
       };
 
@@ -216,8 +391,8 @@ export default function CheckoutPageClient() {
       clearBookingDraft();
 
       router.push(`/booking-confirmation?ref=${encodeURIComponent(reference)}`);
-    } catch {
-      setPayError("Unexpected mock payment error. Please try again.");
+    } catch (error) {
+      setPayError(error?.message || "The booking could not be confirmed. Please try again.");
       setProcessing(false);
       payingRef.current = false;
     }
@@ -230,7 +405,9 @@ export default function CheckoutPageClient() {
           <CheckoutProgress current="payment" />
           <h1 className="section-title">Secure checkout</h1>
           <p className="section-copy">
-            Guest checkout — no account required. Review your trip, then complete payment.
+            {getCurrentUser()
+              ? "You are signed in. Payment saves this trip on your account."
+              : "Review your trip, then complete payment."}
           </p>
 
           <div className="booking-layout">
@@ -255,6 +432,15 @@ export default function CheckoutPageClient() {
                 service={service}
                 draft={draft}
                 detailsHref={detailsHref}
+                onChangeContact={(contact) => {
+                  setDraft((prev) => {
+                    if (!prev) return prev;
+                    const next = { ...prev, contact };
+                    saveBookingDraft(next);
+                    return next;
+                  });
+                }}
+                onChooseTraveller={accountUser || getCurrentUser() ? setPicker : undefined}
               />
               <PromoCodeField
                 promo={promo}
@@ -316,6 +502,13 @@ export default function CheckoutPageClient() {
           </div>
         </div>
       </div>
+      <TravellerPickerModal
+        open={Boolean(picker)}
+        travellers={savedTravellers}
+        typeFilter={picker?.type || ""}
+        onClose={() => setPicker(null)}
+        onSelect={chooseSavedTraveller}
+      />
     </CheckoutShell>
   );
 }

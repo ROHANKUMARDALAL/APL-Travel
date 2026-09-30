@@ -1,9 +1,28 @@
 "use client";
 
+import DatePicker from "@/components/ui/DatePicker";
+import { today } from "@/lib/dateUtils";
+
 export function FieldError({ message }) {
   if (!message) return null;
   return <p className="field-error">{message}</p>;
 }
+
+function isoToDate(value) {
+  if (!value) return null;
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function dateToIso(date) {
+  if (!date) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+const BIRTH_MIN = new Date(1920, 0, 1);
 
 export function ContactFields({ values, errors, onChange }) {
   return (
@@ -49,12 +68,16 @@ export function FlightTravellerForm({
   onChangeContact,
   errors,
   showPassport,
+  savedTravellers = [],
+  onSelectSaved,
+  onSaveTraveller,
+  contactHint = "",
 }) {
   return (
     <section className="booking-section" id="traveller">
       <h2 className="booking-section-title">Traveller information</h2>
       <p className="booking-section-copy">
-        Enter names exactly as they appear on travel documents.
+        Select a saved traveller or enter names exactly as they appear on travel documents. You can edit any field after selecting.
       </p>
 
       {travellers.map((person, index) => (
@@ -63,6 +86,28 @@ export function FlightTravellerForm({
             Traveller {index + 1}
             {person.type !== "adult" ? ` · ${person.type}` : ""}
           </h3>
+          {onSelectSaved ? (
+            <div className="booking-form-grid">
+              <div className="search-field search-field-action">
+                <button
+                  type="button"
+                  className="traveller-list-btn"
+                  onClick={() => onSelectSaved(person)}
+                >
+                  Choose from traveller list
+                </button>
+              </div>
+              <div className="search-field search-field-action">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => onSaveTraveller?.(person)}
+                >
+                  Save to traveller list
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="booking-form-grid">
             <div className="search-field">
               <label className="field-label" htmlFor={`title-${person.id}`}>
@@ -115,17 +160,14 @@ export function FlightTravellerForm({
               <FieldError message={errors[`${person.id}-lastName`]} />
             </div>
             <div className="search-field">
-              <label className="field-label" htmlFor={`dob-${person.id}`}>
-                Date of birth
-              </label>
-              <input
+              <DatePicker
                 id={`dob-${person.id}`}
-                className={`field-input ${errors[`${person.id}-dob`] ? "is-invalid" : ""}`}
-                type="date"
-                value={person.dob}
-                onChange={(e) =>
-                  onChangeTraveller(person.id, { dob: e.target.value })
-                }
+                label="Date of birth"
+                value={isoToDate(person.dob)}
+                minDate={BIRTH_MIN}
+                maxDate={today()}
+                placeholder="Select date of birth"
+                onChange={(date) => onChangeTraveller(person.id, { dob: dateToIso(date) })}
               />
               <FieldError message={errors[`${person.id}-dob`]} />
             </div>
@@ -180,18 +222,15 @@ export function FlightTravellerForm({
                   <FieldError message={errors[`${person.id}-passport`]} />
                 </div>
                 <div className="search-field">
-                  <label className="field-label" htmlFor={`pass-exp-${person.id}`}>
-                    Passport expiry
-                  </label>
-                  <input
+                  <DatePicker
                     id={`pass-exp-${person.id}`}
-                    className={`field-input ${errors[`${person.id}-passportExpiry`] ? "is-invalid" : ""}`}
-                    type="date"
-                    value={person.passportExpiry}
-                    onChange={(e) =>
-                      onChangeTraveller(person.id, {
-                        passportExpiry: e.target.value,
-                      })
+                    label="Passport expiry"
+                    value={isoToDate(person.passportExpiry)}
+                    minDate={today()}
+                    maxDate={new Date(today().getFullYear() + 20, 11, 31)}
+                    placeholder="Select expiry"
+                    onChange={(date) =>
+                      onChangeTraveller(person.id, { passportExpiry: dateToIso(date) })
                     }
                   />
                   <FieldError message={errors[`${person.id}-passportExpiry`]} />
@@ -204,7 +243,7 @@ export function FlightTravellerForm({
 
       <h3 className="booking-subsection-title">Contact information</h3>
       <p className="booking-section-copy">
-        Booking confirmation and updates will be sent here.
+        {contactHint || "Booking confirmation and updates will be sent here."}
       </p>
       <ContactFields values={contact} errors={errors} onChange={onChangeContact} />
     </section>
@@ -219,6 +258,7 @@ export function HotelGuestForm({
   contact,
   onChangeContact,
   errors,
+  onOpenTravellers,
 }) {
   return (
     <section className="booking-section" id="traveller">
@@ -229,6 +269,11 @@ export function HotelGuestForm({
 
       <div className="guest-block">
         <h3 className="guest-block-title">Lead guest</h3>
+        {onOpenTravellers ? (
+          <button type="button" className="traveller-list-btn" onClick={onOpenTravellers}>
+            Choose from traveller list
+          </button>
+        ) : null}
         <div className="booking-form-grid">
           <div className="search-field">
             <label className="field-label" htmlFor="lead-first">
@@ -301,11 +346,16 @@ export function HotelGuestForm({
   );
 }
 
-export function BusPassengerForm({ passenger, onChangePassenger, contact, onChangeContact, errors }) {
+export function BusPassengerForm({ passenger, onChangePassenger, contact, onChangeContact, errors, onOpenTravellers }) {
   return (
     <section className="booking-section" id="traveller">
       <h2 className="booking-section-title">Passenger information</h2>
       <div className="guest-block">
+        {onOpenTravellers ? (
+          <button type="button" className="traveller-list-btn" onClick={onOpenTravellers}>
+            Choose from traveller list
+          </button>
+        ) : null}
         <div className="booking-form-grid">
           <div className="search-field">
             <label className="field-label" htmlFor="bus-first">

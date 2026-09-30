@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckoutShell } from "@/components/checkout/CheckoutShell";
 import { findResultById, getHotelRooms } from "@/lib/booking";
-import { loadConfirmation, whatHappensNext } from "@/lib/confirmation";
+import { useAuth } from "@/components/auth/useAuth";
+import { claimSavedTrip } from "@/lib/api/booking";
+import { getCurrentUser } from "@/lib/auth";
+import { loadConfirmation, saveConfirmation, whatHappensNext } from "@/lib/confirmation";
 import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
 import { BOOKING_EXTRAS } from "@/lib/booking";
 import { getActiveMarketId } from "@/data/markets";
@@ -46,14 +49,35 @@ function buildCalendarHref(confirmation, item) {
 
 export default function ConfirmationClient() {
   const searchParams = useSearchParams();
+  const { authenticated, user } = useAuth();
   const [confirmation, setConfirmation] = useState(null);
+  const [accountUser, setAccountUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setConfirmation(loadConfirmation());
+    const current = loadConfirmation();
+    const account = getCurrentUser();
+    setAccountUser(account);
+    setConfirmation(current);
     setReady(true);
-  }, []);
+    if (!authenticated || !current?.reference || String(current.reference).startsWith("APL-BK-")) {
+      return undefined;
+    }
+    let ignore = false;
+    claimSavedTrip(current)
+      .then((saved) => {
+        const reference = saved?.bookingId || saved?.aplBookingRef;
+        if (ignore || !reference) return;
+        const next = { ...current, reference, previousReference: current.reference, accountSaved: true };
+        saveConfirmation(next);
+        setConfirmation(next);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [authenticated]);
 
   if (!ready) {
     return (
@@ -66,10 +90,11 @@ export default function ConfirmationClient() {
   }
 
   const refParam = searchParams.get("ref");
-  if (
-    !confirmation ||
-    (refParam && confirmation.reference !== refParam)
-  ) {
+  const referenceMatches =
+    !refParam ||
+    confirmation.reference === refParam ||
+    confirmation.previousReference === refParam;
+  if (!confirmation || !referenceMatches) {
     return (
       <CheckoutShell>
         <div className="container-page checkout-page">
@@ -99,6 +124,9 @@ export default function ConfirmationClient() {
   const query = confirmation.searchQuery || {};
   const extras = (BOOKING_EXTRAS[service] || []).filter((extra) =>
     (confirmation.extras || []).includes(extra.id),
+  );
+  const signedIn = Boolean(
+    authenticated || user || accountUser || confirmation.bookedForUserId || getCurrentUser(),
   );
   const room =
     service === "hotel"
@@ -227,10 +255,15 @@ export default function ConfirmationClient() {
 
           <section className="checkout-section">
             <h2 className="checkout-section-title">What happens next?</h2>
-            <p className="section-copy">{whatHappensNext(service)}</p>
+            <p className="section-copy">
+              {signedIn
+                ? "This trip is saved on the account you are signed in with. Open My Trips to see it."
+                : whatHappensNext(service)}
+            </p>
             <p className="result-card-meta">
-              Confirmation email would be sent to {confirmation.contact?.email || "your inbox"}{" "}
-              in a live system.
+              {signedIn
+                ? `The confirmation is linked to ${user?.email || confirmation.contact?.email || "your account"}.`
+                : `Confirmation email would be sent to ${confirmation.contact?.email || "your inbox"} in a live system.`}
             </p>
           </section>
         </div>
@@ -269,6 +302,7 @@ export default function ConfirmationClient() {
           </Link>
         </div>
 
+        {!signedIn ? (
         <section className="checkout-section confirmation-account-cta">
           <h2 className="checkout-section-title">Create an account to manage this trip</h2>
           <p className="section-copy">
@@ -279,6 +313,7 @@ export default function ConfirmationClient() {
             Create account (coming soon)
           </Link>
         </section>
+        ) : null}
       </div>
     </CheckoutShell>
   );

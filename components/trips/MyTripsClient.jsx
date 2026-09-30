@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AccountShell from "@/components/account/AccountShell";
 import { useAuth } from "@/components/auth/useAuth";
@@ -11,7 +11,7 @@ import {
   getBookingDateLabel,
   getBookingHeadline,
   getTravellerDisplayName,
-  listBookings,
+  loadAccountBookings,
   paymentStatusLabel,
 } from "@/lib/userBookings";
 import { formatShortDate } from "@/lib/resultsHelpers";
@@ -83,17 +83,31 @@ function TripCard({ booking }) {
 export default function MyTripsClient() {
   const { user } = useAuth();
   const [phase, setPhase] = useState("upcoming");
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const bookings = useMemo(
-    () => listBookings({ email: user?.email, phase }),
-    [user?.email, phase],
-  );
+  useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+    loadAccountBookings()
+      .then((rows) => {
+        if (!ignore) setBookings(rows.filter((row) => row.tripPhase === phase));
+      })
+      .catch(() => {
+        if (!ignore) setBookings([]);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [phase, user?.id]);
 
   return (
     <AccountShell title="My Trips">
       <p className="section-copy account-lede">
-        Your bookings in one place. Guest checkouts stay available via Find
-        booking if you prefer not to sign in.
+        Your bookings for this signed-in account. Each trip is loaded with your login and stays with that customer.
       </p>
 
       <div className="account-inline-actions account-lede-actions">
@@ -120,7 +134,11 @@ export default function MyTripsClient() {
         ))}
       </div>
 
-      {bookings.length === 0 ? (
+      {loading ? (
+        <section className="checkout-section account-panel">
+          <p className="section-copy">Loading your bookings…</p>
+        </section>
+      ) : bookings.length === 0 ? (
         <section className="checkout-section account-panel">
           <h2 className="checkout-section-title">No {phase} trips</h2>
           <p className="section-copy">

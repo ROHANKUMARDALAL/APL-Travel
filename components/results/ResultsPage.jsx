@@ -17,8 +17,6 @@ import {
 import FlightSearchForm from "@/components/forms/FlightSearchForm";
 import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
-import { MOCK_FLIGHTS } from "@/data/mock/flights";
-import { MOCK_HOTELS } from "@/data/mock/hotels";
 import { MOCK_BUSES } from "@/data/mock/buses";
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode } from "@/data/markets";
 import {
@@ -31,12 +29,14 @@ import {
   filterFlights,
   filterHotels,
   formatDuration,
+  getPriceParts,
   nightsBetween,
   sortBuses,
   sortFlights,
   sortHotels,
   TIME_BUCKETS,
 } from "@/lib/resultsHelpers";
+import { searchFlights, searchHotels } from "@/lib/api/search";
 import {
   buildResultsHref,
   parseBusSearchParams,
@@ -100,14 +100,18 @@ function queryObjectFromParams(service, searchParams) {
     const parsed = parseFlightSearchParams(searchParams);
     return {
       service: "flight",
+      trip: parsed.tripType,
       from: parsed.from,
       to: parsed.to,
       depart: searchParams.get("depart") || "",
-      return: searchParams.get("return") || "",
+      return: parsed.tripType === "return" ? searchParams.get("return") || "" : "",
       adults: String(parsed.adults),
       children: String(parsed.children),
       infants: String(parsed.infants),
       fareType: parsed.fareType,
+      originCityCode: parsed.originCityCode,
+      destinationCityCode: parsed.destinationCityCode,
+      legs: parsed.tripType === "multi" ? searchParams.get("legs") || "" : "",
     };
   }
   if (service === "hotel") {
@@ -115,6 +119,7 @@ function queryObjectFromParams(service, searchParams) {
     return {
       service: "hotel",
       destination: parsed.destination,
+      cityCode: parsed.cityCode,
       checkIn: searchParams.get("checkIn") || "",
       checkOut: searchParams.get("checkOut") || "",
       guests: String(parsed.guests),
@@ -145,16 +150,20 @@ export default function ResultsPage({ service }) {
     if (service === "flight") {
       const parsed = parseFlightSearchParams(searchParams);
       return {
+        tripType: parsed.tripType,
         from: parsed.from,
         to: parsed.to,
         departDate: parsed.departDate,
         returnDate: parsed.returnDate,
+        legs: parsed.legs,
         travellers: {
           adults: parsed.adults,
           children: parsed.children,
           infants: parsed.infants,
         },
         fareType: parsed.fareType,
+        originCityCode: parsed.originCityCode,
+        destinationCityCode: parsed.destinationCityCode,
       };
     }
     if (service === "hotel") {
@@ -164,6 +173,7 @@ export default function ResultsPage({ service }) {
         checkInDate: parsed.checkInDate,
         checkOutDate: parsed.checkOutDate,
         occupancy: { guests: parsed.guests, rooms: parsed.rooms },
+        cityCode: parsed.cityCode,
       };
     }
     const parsed = parseBusSearchParams(searchParams);
@@ -180,11 +190,9 @@ export default function ResultsPage({ service }) {
     return buildBusSummary(searchQuery, marketId);
   }, [service, searchQuery, marketId]);
 
-  const rawItems = useMemo(() => {
-    if (service === "flight") return MOCK_FLIGHTS;
-    if (service === "hotel") return MOCK_HOTELS;
-    return MOCK_BUSES;
-  }, [service]);
+  const [rawItems, setRawItems] = useState([]);
+  const [retryToken, setRetryToken] = useState(0);
+  const [loadError, setLoadError] = useState("");
 
   const [status, setStatus] = useState("loading");
   const [sort, setSort] = useState("recommended");
@@ -199,38 +207,86 @@ export default function ResultsPage({ service }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setStatus("loading");
+    setLoadError("");
     setFilters(defaultFilters(service));
     setSort("recommended");
-    const timer = setTimeout(() => {
-      if (searchParams.get("simulate") === "error") {
-        setStatus("error");
-        return;
+
+    async function load() {
+      try {
+        if (searchParams.get("simulate") === "error") {
+          throw new Error("Search could not be completed");
+        }
+        let items = [];
+        if (service === "flight") {
+          const parsed = parseFlightSearchParams(searchParams);
+          if (!parsed.originCityCode || !parsed.destinationCityCode) {
+            throw new Error("Choose departure and arrival cities from the suggestions.");
+          }
+          items = await searchFlights({
+            tripType: parsed.tripType,
+            originCityCode: parsed.originCityCode,
+            destinationCityCode: parsed.destinationCityCode,
+            depart: searchParams.get("depart"),
+            return: parsed.tripType === "return" ? searchParams.get("return") : "",
+            legs: parsed.legs,
+            adults: parsed.adults,
+            children: parsed.children,
+            infants: parsed.infants,
+          });
+        } else if (service === "hotel") {
+          const parsed = parseHotelSearchParams(searchParams);
+          if (!parsed.cityCode) {
+            throw new Error("Choose a destination city from the suggestions.");
+          }
+          items = await searchHotels({
+            cityCode: parsed.cityCode,
+            checkIn: searchParams.get("checkIn"),
+            checkOut: searchParams.get("checkOut"),
+            rooms: parsed.rooms,
+            adults: parsed.guests,
+          });
+        } else {
+          items = MOCK_BUSES;
+        }
+        if (!cancelled) {
+          setRawItems(items);
+          setStatus("ready");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRawItems([]);
+          setLoadError(error.message || "Search failed");
+          setStatus("error");
+        }
       }
-      setStatus("ready");
-    }, 550);
-    return () => clearTimeout(timer);
-  }, [service, searchParams]);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [service, searchParams, retryToken]);
 
   const meta = useMemo(() => {
-    const totals = rawItems.map(
-      (item) =>
-        item.prices?.[displayCurrency]?.total ??
-        item.prices?.USD?.total ??
-        item.prices?.GBP?.total ??
-        0,
-    );
-    const priceMin = Math.min(...totals);
-    const priceMax = Math.max(...totals);
+    const totals = rawItems
+      .map((item) => {
+        const parts = getPriceParts(item, marketId);
+        return parts.total;
+      })
+      .filter((value) => Number.isFinite(value));
+    const priceMin = totals.length ? Math.min(...totals) : 0;
+    const priceMax = totals.length ? Math.max(...totals) : 0;
 
     if (service === "flight") {
-      const durations = rawItems.map((item) => item.durationMinutes);
+      const durations = rawItems.map((item) => item.durationMinutes).filter((n) => Number.isFinite(n));
       return {
         currency: displayCurrency,
         priceMin,
         priceMax,
-        durationMin: Math.min(...durations),
-        durationMax: Math.max(...durations),
+        durationMin: durations.length ? Math.min(...durations) : 0,
+        durationMax: durations.length ? Math.max(...durations) : 0,
         airlines: [...new Set(rawItems.map((item) => item.airline))],
         departBuckets: TIME_BUCKETS.filter((b) =>
           rawItems.some((item) => item.departBucket === b.id),
@@ -277,8 +333,15 @@ export default function ResultsPage({ service }) {
   const visibleItems = useMemo(() => {
     let list = rawItems;
     if (service === "flight") {
-      list = filterFlights(list, filters, marketId);
-      list = sortFlights(list, sort, marketId);
+      const legIndexes = [...new Set(rawItems.map((item) => item.legIndex).filter((value) => value != null))];
+      if (legIndexes.length) {
+        list = legIndexes.flatMap((legIndex) => {
+          const group = rawItems.filter((item) => item.legIndex === legIndex);
+          return sortFlights(filterFlights(group, filters, marketId), sort, marketId);
+        });
+      } else {
+        list = sortFlights(filterFlights(rawItems, filters, marketId), sort, marketId);
+      }
     } else if (service === "hotel") {
       list = filterHotels(list, filters, marketId);
       list = sortHotels(list, sort, marketId);
@@ -298,14 +361,13 @@ export default function ResultsPage({ service }) {
 
   function handleModifySubmit(event) {
     event.preventDefault();
-    if (!modifyPayload) return;
+    if (!modifyPayload || modifyPayload.error) return;
     router.push(buildResultsHref(service, modifyPayload));
     setModifyOpen(false);
   }
 
   function retryLoad() {
-    setStatus("loading");
-    setTimeout(() => setStatus("ready"), 400);
+    setRetryToken((value) => value + 1);
   }
 
   return (
@@ -400,7 +462,7 @@ export default function ResultsPage({ service }) {
 
               {status === "error" ? (
                 <ResultsError
-                  message="We couldn’t load results right now. Please try again."
+                  message={loadError || "We couldn’t load results right now. Please try again."}
                   onRetry={retryLoad}
                 />
               ) : null}
@@ -424,15 +486,17 @@ export default function ResultsPage({ service }) {
                       Map view is a visual preview — interactive map arrives later.
                     </div>
                   ) : null}
-                  {visibleItems.map((item) => {
+                  {visibleItems.map((item, index) => {
                     const detailsHref = buildDetailsHref(service, item.id, searchQuery);
                     if (service === "flight") {
+                      const showLeg =
+                        item.legLabel &&
+                        (index === 0 || visibleItems[index - 1]?.legIndex !== item.legIndex);
                       return (
-                        <FlightResultCard
-                          key={item.id}
-                          item={item}
-                          detailsHref={detailsHref}
-                        />
+                        <div key={item.id} className="flight-result-block">
+                          {showLeg ? <h3 className="flight-leg-section">{item.legLabel}</h3> : null}
+                          <FlightResultCard item={item} detailsHref={detailsHref} />
+                        </div>
                       );
                     }
                     if (service === "hotel") {

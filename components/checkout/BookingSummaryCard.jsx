@@ -93,7 +93,13 @@ export default function BookingSummaryCard({
   );
 }
 
-export function TravellerReview({ service, draft, detailsHref }) {
+export function TravellerReview({
+  service,
+  draft,
+  detailsHref,
+  onChangeContact,
+  onChooseTraveller,
+}) {
   let lines = [];
 
   if (service === "flight") {
@@ -127,6 +133,31 @@ export function TravellerReview({ service, draft, detailsHref }) {
         </h2>
         <Link href={`${detailsHref}#traveller`}>Change</Link>
       </div>
+      <div className="checkout-traveller-actions">
+        {service === "flight"
+          ? (draft.travellers || []).map((person, index) => (
+              <button
+                key={person.id || index}
+                type="button"
+                className="traveller-list-btn"
+                onClick={() =>
+                  onChooseTraveller?.({ kind: "flight", index, type: person.type || "adult" })
+                }
+              >
+                Choose traveller {index + 1}
+                {person.type ? ` · ${person.type}` : ""} from list
+              </button>
+            ))
+          : (
+              <button
+                type="button"
+                className="traveller-list-btn"
+                onClick={() => onChooseTraveller?.({ kind: service === "hotel" ? "hotel" : "bus" })}
+              >
+                Choose from traveller list
+              </button>
+            )}
+      </div>
       <ul className="checkout-review-list">
         {lines.map((line) => (
           <li key={line}>{line}</li>
@@ -134,8 +165,47 @@ export function TravellerReview({ service, draft, detailsHref }) {
       </ul>
       <div className="checkout-contact-box">
         <h3 className="booking-subsection-title">Contact information</h3>
-        <p className="result-card-meta">{draft.contact?.email || "—"}</p>
-        <p className="result-card-meta">{draft.contact?.phone || "—"}</p>
+        <p className="booking-section-copy">
+          Filled from your profile when you are signed in. Change the email or phone for this booking if you need to.
+        </p>
+        <div className="booking-form-grid">
+          <div className="search-field">
+            <label className="field-label" htmlFor="checkout-email">
+              Email
+            </label>
+            <input
+              id="checkout-email"
+              className="field-input"
+              type="email"
+              autoComplete="email"
+              value={draft.contact?.email || ""}
+              onChange={(event) =>
+                onChangeContact?.({
+                  ...(draft.contact || {}),
+                  email: event.target.value,
+                })
+              }
+            />
+          </div>
+          <div className="search-field">
+            <label className="field-label" htmlFor="checkout-phone">
+              Phone
+            </label>
+            <input
+              id="checkout-phone"
+              className="field-input"
+              type="tel"
+              autoComplete="tel"
+              value={draft.contact?.phone || ""}
+              onChange={(event) =>
+                onChangeContact?.({
+                  ...(draft.contact || {}),
+                  phone: event.target.value,
+                })
+              }
+            />
+          </div>
+        </div>
       </div>
     </section>
   );

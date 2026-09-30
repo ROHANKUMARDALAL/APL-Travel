@@ -5,7 +5,6 @@ import {
   addDays,
   clampDate,
   formatDateLabel,
-  formatMonthYear,
   getMonthMatrix,
   isBeforeDay,
   isSameDay,
@@ -14,6 +13,20 @@ import {
 } from "@/lib/dateUtils";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 export default function DatePicker({
   id,
@@ -57,7 +70,18 @@ export default function DatePicker({
   const cells = useMemo(() => getMonthMatrix(viewDate), [viewDate]);
 
   function openCalendar() {
-    setViewDate(startOfDay(value || effectiveMin || today()));
+    if (value) {
+      setViewDate(startOfDay(value));
+    } else if (effectiveMin && effectiveMax) {
+      const preferredYear = effectiveMax.getFullYear() - 30;
+      const year = Math.min(
+        effectiveMax.getFullYear(),
+        Math.max(effectiveMin.getFullYear(), preferredYear),
+      );
+      setViewDate(startOfDay(new Date(year, 0, 1)));
+    } else {
+      setViewDate(startOfDay(effectiveMin || today()));
+    }
     setOpen(true);
   }
 
@@ -76,6 +100,20 @@ export default function DatePicker({
       return startOfDay(next);
     });
   }
+
+  function showMonth(year, month) {
+    const day = Math.min(viewDate.getDate(), new Date(year, month + 1, 0).getDate());
+    setViewDate(startOfDay(new Date(year, month, day)));
+  }
+
+  const minYear = effectiveMin ? effectiveMin.getFullYear() : viewDate.getFullYear() - 100;
+  const maxYear = effectiveMax
+    ? effectiveMax.getFullYear()
+    : effectiveMin
+      ? effectiveMin.getFullYear() + 2
+      : viewDate.getFullYear() + 2;
+  const years = [];
+  for (let year = maxYear; year >= minYear; year -= 1) years.push(year);
 
   const display = value ? formatDateLabel(value) : placeholder;
 
@@ -119,7 +157,32 @@ export default function DatePicker({
             >
               ‹
             </button>
-            <p className="calendar-month">{formatMonthYear(viewDate)}</p>
+            <div className="calendar-selects">
+              <select
+                className="calendar-select"
+                aria-label="Month"
+                value={viewDate.getMonth()}
+                onChange={(event) => showMonth(viewDate.getFullYear(), Number(event.target.value))}
+              >
+                {MONTHS.map((month, index) => (
+                  <option key={month} value={index}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="calendar-select"
+                aria-label="Year"
+                value={viewDate.getFullYear()}
+                onChange={(event) => showMonth(Number(event.target.value), viewDate.getMonth())}
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               className="calendar-nav-btn"
