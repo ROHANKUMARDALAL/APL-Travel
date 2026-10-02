@@ -8,6 +8,43 @@ export function FieldError({ message }) {
   return <p className="field-error">{message}</p>;
 }
 
+export function isValidAge(value) {
+  if (value === "" || value == null) return false;
+  const age = Number(value);
+  return Number.isInteger(age) && age >= 0 && age <= 120;
+}
+
+export function ageFromDob(value) {
+  if (!value) return "";
+  const born = new Date(value);
+  if (Number.isNaN(born.getTime())) return "";
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  const month = now.getMonth() - born.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < born.getDate())) age -= 1;
+  return age >= 0 && age <= 120 ? String(age) : "";
+}
+
+export function AgeField({ id, value, error, onChange }) {
+  return (
+    <div className="search-field checkout-age-field">
+      <label className="field-label" htmlFor={id}>
+        Age
+      </label>
+      <input
+        id={id}
+        className={`field-input ${error ? "is-invalid" : ""}`}
+        inputMode="numeric"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 3))}
+        placeholder="Age"
+        aria-required="true"
+      />
+      <FieldError message={error} />
+    </div>
+  );
+}
+
 function isoToDate(value) {
   if (!value) return null;
   const [year, month, day] = String(value).split("-").map(Number);
@@ -70,7 +107,6 @@ export function FlightTravellerForm({
   showPassport,
   savedTravellers = [],
   onSelectSaved,
-  onSaveTraveller,
   contactHint = "",
 }) {
   return (
@@ -87,26 +123,13 @@ export function FlightTravellerForm({
             {person.type !== "adult" ? ` · ${person.type}` : ""}
           </h3>
           {onSelectSaved ? (
-            <div className="booking-form-grid">
-              <div className="search-field search-field-action">
-                <button
-                  type="button"
-                  className="traveller-list-btn"
-                  onClick={() => onSelectSaved(person)}
-                >
-                  Choose from traveller list
-                </button>
-              </div>
-              <div className="search-field search-field-action">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => onSaveTraveller?.(person)}
-                >
-                  Save to traveller list
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              className="traveller-list-btn"
+              onClick={() => onSelectSaved(person)}
+            >
+              Choose from traveller list
+            </button>
           ) : null}
           <div className="booking-form-grid">
             <div className="search-field">
@@ -264,7 +287,7 @@ export function HotelGuestForm({
     <section className="booking-section" id="traveller">
       <h2 className="booking-section-title">Guest information</h2>
       <p className="booking-section-copy">
-        The lead guest should match the name on the payment card later.
+        The lead guest should match the name on the payment card later. Age is required for every guest.
       </p>
 
       <div className="guest-block">
@@ -303,6 +326,12 @@ export function HotelGuestForm({
             />
             <FieldError message={errors.leadLast} />
           </div>
+          <AgeField
+            id="lead-age"
+            value={leadGuest.age}
+            error={errors.leadAge}
+            onChange={(age) => onChangeLead({ ...leadGuest, age })}
+          />
         </div>
       </div>
 
@@ -336,6 +365,12 @@ export function HotelGuestForm({
                 }
               />
             </div>
+            <AgeField
+              id={`add-age-${guest.id}`}
+              value={guest.age}
+              error={errors[`addAge-${guest.id}`]}
+              onChange={(age) => onChangeAdditional(guest.id, { age })}
+            />
           </div>
         </div>
       ))}
@@ -346,51 +381,81 @@ export function HotelGuestForm({
   );
 }
 
-export function BusPassengerForm({ passenger, onChangePassenger, contact, onChangeContact, errors, onOpenTravellers }) {
+export function BusPassengerForm({
+  passengers,
+  onChangePassenger,
+  contact,
+  onChangeContact,
+  errors,
+  onOpenTravellers,
+}) {
+  const people = passengers?.length ? passengers : [];
   return (
     <section className="booking-section" id="traveller">
       <h2 className="booking-section-title">Passenger information</h2>
-      <div className="guest-block">
-        {onOpenTravellers ? (
-          <button type="button" className="traveller-list-btn" onClick={onOpenTravellers}>
-            Choose from traveller list
-          </button>
-        ) : null}
-        <div className="booking-form-grid">
-          <div className="search-field">
-            <label className="field-label" htmlFor="bus-first">
-              First name
-            </label>
-            <input
-              id="bus-first"
-              className={`field-input ${errors.firstName ? "is-invalid" : ""}`}
-              value={passenger.firstName}
-              onChange={(e) =>
-                onChangePassenger({ ...passenger, firstName: e.target.value })
-              }
-              placeholder="Aisha"
-              autoComplete="given-name"
-            />
-            <FieldError message={errors.firstName} />
+      <p className="booking-section-copy">
+        One passenger for each selected seat, up to 6. Age is required for every passenger.
+      </p>
+      {people.length ? (
+        people.map((passenger, index) => (
+          <div key={passenger.seat || passenger.id} className="guest-block">
+            <h3 className="guest-block-title">
+              Seat {passenger.seat || index + 1}
+            </h3>
+            {onOpenTravellers ? (
+              <button
+                type="button"
+                className="traveller-list-btn"
+                onClick={() => onOpenTravellers(passenger)}
+              >
+                Choose from traveller list
+              </button>
+            ) : null}
+            <div className="booking-form-grid">
+              <div className="search-field">
+                <label className="field-label" htmlFor={`bus-first-${passenger.seat}`}>
+                  First name
+                </label>
+                <input
+                  id={`bus-first-${passenger.seat}`}
+                  className={`field-input ${errors[`${passenger.seat}-firstName`] ? "is-invalid" : ""}`}
+                  value={passenger.firstName}
+                  onChange={(event) =>
+                    onChangePassenger(passenger.seat, { firstName: event.target.value })
+                  }
+                  placeholder="Aisha"
+                  autoComplete="given-name"
+                />
+                <FieldError message={errors[`${passenger.seat}-firstName`]} />
+              </div>
+              <div className="search-field">
+                <label className="field-label" htmlFor={`bus-last-${passenger.seat}`}>
+                  Last name
+                </label>
+                <input
+                  id={`bus-last-${passenger.seat}`}
+                  className={`field-input ${errors[`${passenger.seat}-lastName`] ? "is-invalid" : ""}`}
+                  value={passenger.lastName}
+                  onChange={(event) =>
+                    onChangePassenger(passenger.seat, { lastName: event.target.value })
+                  }
+                  placeholder="Meridian"
+                  autoComplete="family-name"
+                />
+                <FieldError message={errors[`${passenger.seat}-lastName`]} />
+              </div>
+              <AgeField
+                id={`bus-age-${passenger.seat}`}
+                value={passenger.age}
+                error={errors[`${passenger.seat}-age`]}
+                onChange={(age) => onChangePassenger(passenger.seat, { age })}
+              />
+            </div>
           </div>
-          <div className="search-field">
-            <label className="field-label" htmlFor="bus-last">
-              Last name
-            </label>
-            <input
-              id="bus-last"
-              className={`field-input ${errors.lastName ? "is-invalid" : ""}`}
-              value={passenger.lastName}
-              onChange={(e) =>
-                onChangePassenger({ ...passenger, lastName: e.target.value })
-              }
-              placeholder="Meridian"
-              autoComplete="family-name"
-            />
-            <FieldError message={errors.lastName} />
-          </div>
-        </div>
-      </div>
+        ))
+      ) : (
+        <p className="booking-section-copy">Select at least one seat to add a passenger.</p>
+      )}
 
       <h3 className="booking-subsection-title">Contact information</h3>
       <ContactFields values={contact} errors={errors} onChange={onChangeContact} />

@@ -40,9 +40,20 @@ export function FinalReview({
     travellerLine = lead
       ? `${lead.firstName} ${lead.lastName}`.trim() || "Lead guest on file"
       : "Lead guest on file";
+  } else if (Array.isArray(draft.travellers)) {
+    travellerLine =
+      draft.travellers
+        .map((person) =>
+          [person.firstName, person.lastName, person.age ? `(${person.age})` : ""]
+            .filter(Boolean)
+            .join(" "),
+        )
+        .filter(Boolean)
+        .join(", ") || "Passengers on file";
   } else {
-    const p = draft.travellers || {};
-    travellerLine = `${p.firstName || ""} ${p.lastName || ""}`.trim() || "Passenger on file";
+    const person = draft.travellers || {};
+    travellerLine =
+      `${person.firstName || ""} ${person.lastName || ""}`.trim() || "Passenger on file";
   }
 
   return (
@@ -72,7 +83,7 @@ export function FinalReview({
       </dl>
 
       <div className="legal-checks">
-        <label className="wallet-toggle">
+        <label className="legal-check">
           <input
             type="checkbox"
             checked={accepted.terms}
@@ -85,7 +96,7 @@ export function FinalReview({
             <Link href="/support">Terms &amp; Conditions</Link>
           </span>
         </label>
-        <label className="wallet-toggle">
+        <label className="legal-check">
           <input
             type="checkbox"
             checked={accepted.cancellation}
@@ -98,7 +109,7 @@ export function FinalReview({
             <Link href="/support">cancellation &amp; refund policy</Link>
           </span>
         </label>
-        <label className="wallet-toggle">
+        <label className="legal-check">
           <input
             type="checkbox"
             checked={accepted.privacy}

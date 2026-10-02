@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SiteChrome from "@/components/layout/SiteChrome";
+import BookingProgress from "@/components/booking/BookingProgress";
 import SearchSummary from "@/components/results/SearchSummary";
 import FilterPanel from "@/components/results/FilterPanel";
 import SortBar from "@/components/results/SortBar";
@@ -73,13 +74,13 @@ function defaultFilters(service) {
       departBuckets: [],
       arriveBuckets: [],
       maxPrice: null,
-      maxDuration: null,
+      minPrice: null,
     };
   }
   if (service === "hotel") {
     return {
+      minPrice: null,
       maxPrice: null,
-      minRating: 7,
       stars: [],
       propertyTypes: [],
       amenities: [],
@@ -374,6 +375,7 @@ export default function ResultsPage({ service }) {
     <SiteChrome activeService={service}>
       <div className="results-page">
         <div className="container-page results-page-inner">
+          <BookingProgress current="results" backHref={homeHref} />
           <SearchSummary
             title={summary.title}
             primary={summary.primary}

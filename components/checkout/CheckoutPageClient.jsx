@@ -25,6 +25,7 @@ import { simulateMockPayment, validateCardFields } from "@/lib/mockPayment";
 import { bookFlightStay, bookHotelStay } from "@/lib/api/booking";
 import { applySavedTraveller, fetchSavedTravellers } from "@/lib/api/travellers";
 import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
+import { isValidAge, ageFromDob } from "@/components/booking/TravellerForms";
 import { getCurrentUser } from "@/lib/auth";
 import { useAuth } from "@/components/auth/useAuth";
 import {
@@ -114,8 +115,23 @@ export default function CheckoutPageClient() {
               ...(prev.travellers?.lead || {}),
               firstName: saved.firstName || "",
               lastName: saved.lastName || "",
+              age: ageFromDob(saved.dateOfBirth),
             },
           },
+        };
+      } else if (picker.kind === "bus" && Array.isArray(prev.travellers)) {
+        next = {
+          ...prev,
+          travellers: prev.travellers.map((person, index) =>
+            index === picker.index
+              ? {
+                  ...person,
+                  firstName: saved.firstName || "",
+                  lastName: saved.lastName || "",
+                  age: ageFromDob(saved.dateOfBirth),
+                }
+              : person,
+          ),
         };
       } else {
         next = {
@@ -185,7 +201,7 @@ export default function CheckoutPageClient() {
     return (
       <CheckoutShell>
         <div className="container-page checkout-page">
-          <CheckoutProgress current="payment" />
+          <CheckoutProgress current="payment" backHref="/" />
           <div className="booking-not-found">
             <h1 className="section-title">Checkout session missing</h1>
             <p className="section-copy">
@@ -216,6 +232,17 @@ export default function CheckoutPageClient() {
 
   function validateCheckout() {
     const next = {};
+    if (service === "hotel") {
+      if (!isValidAge(draft?.travellers?.lead?.age)) next.leadAge = "Enter age";
+      (draft?.travellers?.additional || []).forEach((guest) => {
+        if (!isValidAge(guest.age)) next[`addAge-${guest.id}`] = "Enter age";
+      });
+    }
+    if (service === "bus" && Array.isArray(draft?.travellers)) {
+      draft.travellers.forEach((person, index) => {
+        if (!isValidAge(person.age)) next[`age-${person.seat || index}`] = "Enter age";
+      });
+    }
     if (method === "card") {
       Object.assign(next, validateCardFields(card));
     }
@@ -223,15 +250,62 @@ export default function CheckoutPageClient() {
       next.legal = "Please accept the required policies to continue";
     }
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
+  }
+
+  function changePassengerAge(change) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      let travellers = prev.travellers;
+      if (change.kind === "hotel-lead") {
+        travellers = {
+          ...prev.travellers,
+          lead: { ...(prev.travellers?.lead || {}), age: change.age },
+        };
+      } else if (change.kind === "hotel-guest") {
+        travellers = {
+          ...prev.travellers,
+          additional: (prev.travellers?.additional || []).map((guest) =>
+            guest.id === change.id ? { ...guest, age: change.age } : guest,
+          ),
+        };
+      } else if (change.kind === "bus" && Array.isArray(prev.travellers)) {
+        travellers = prev.travellers.map((person, index) =>
+          (change.seat ? person.seat === change.seat : index === change.index)
+            ? { ...person, age: change.age }
+            : person,
+        );
+      }
+      const next = { ...prev, travellers };
+      saveBookingDraft(next);
+      return next;
+    });
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (change.kind === "hotel-lead") delete next.leadAge;
+      if (change.kind === "hotel-guest") delete next[`addAge-${change.id}`];
+      if (change.kind === "bus") delete next[`age-${change.seat || change.index}`];
+      return next;
+    });
   }
 
   async function handlePay() {
     if (payingRef.current || processing) return;
     setPayError("");
-    if (!validateCheckout()) {
-      setPayError("Please fix the highlighted fields before paying.");
-      document.getElementById("payment")?.scrollIntoView({ behavior: "smooth" });
+    const problems = validateCheckout();
+    if (Object.keys(problems).length) {
+      const needsAge = Object.keys(problems).some(
+        (key) => key === "leadAge" || key.startsWith("addAge-") || key.startsWith("age-"),
+      );
+      setPayError(
+        needsAge
+          ? "Enter the age for every guest before paying."
+          : "Please fix the highlighted fields before paying.",
+      );
+      document.getElementById(needsAge ? "checkout-guests" : "payment")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
       return;
     }
 
@@ -402,7 +476,7 @@ export default function CheckoutPageClient() {
     <CheckoutShell>
       <div className="checkout-page">
         <div className="container-page checkout-page-inner">
-          <CheckoutProgress current="payment" />
+          <CheckoutProgress current="payment" backHref={detailsHref} />
           <h1 className="section-title">Secure checkout</h1>
           <p className="section-copy">
             {getCurrentUser()
@@ -441,6 +515,8 @@ export default function CheckoutPageClient() {
                   });
                 }}
                 onChooseTraveller={accountUser || getCurrentUser() ? setPicker : undefined}
+                onChangeAge={changePassengerAge}
+                ageErrors={errors}
               />
               <PromoCodeField
                 promo={promo}

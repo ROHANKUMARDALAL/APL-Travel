@@ -25,16 +25,21 @@ export default function HotelResultCard({ item, detailsHref, nights = 1 }) {
       </div>
 
       <div className="hotel-card-info">
-        <p className="result-card-kicker">
-          {item.stars}★ · {item.propertyType}
-        </p>
+        <span className="hotel-type">{item.propertyType}</span>
+        <span className="hotel-stars" aria-label={`${item.stars} star hotel`}>
+          {Array.from({ length: 5 }, (_, index) => (
+            <span key={index} className={index < item.stars ? "is-on" : ""}>
+              ★
+            </span>
+          ))}
+        </span>
         <h2 className="hotel-card-name">{item.name}</h2>
         <p className="result-card-meta hotel-card-location">{item.location}</p>
         <p className="hotel-rating">
-          <strong>{item.rating.toFixed(1)}</strong>
-          <span>
-            /10 · {item.reviewCount.toLocaleString()} reviews
-          </span>
+          <strong>{Number(item.rating || 0).toFixed(1)}</strong>
+          {item.reviewCount > 0 ? (
+            <span>{item.reviewCount.toLocaleString()} reviews</span>
+          ) : null}
         </p>
         <ul className="hotel-amenities">
           {item.amenities.slice(0, 4).map((amenity) => (

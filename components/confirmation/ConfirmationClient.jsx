@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckoutShell } from "@/components/checkout/CheckoutShell";
-import { findResultById, getHotelRooms } from "@/lib/booking";
+import BookingProgress from "@/components/booking/BookingProgress";
+import { BOOKING_EXTRAS, findResultById, formatSelectedSeats, getHotelRooms } from "@/lib/booking";
 import { useAuth } from "@/components/auth/useAuth";
 import { claimSavedTrip } from "@/lib/api/booking";
 import { getCurrentUser } from "@/lib/auth";
 import { loadConfirmation, saveConfirmation, whatHappensNext } from "@/lib/confirmation";
 import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
-import { BOOKING_EXTRAS } from "@/lib/booking";
 import { getActiveMarketId } from "@/data/markets";
+import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
 
 function toCalendarStamp(dateStr) {
   if (!dateStr) return null;
@@ -148,6 +149,7 @@ export default function ConfirmationClient() {
   return (
     <CheckoutShell>
       <div className="container-page confirmation-page">
+        <BookingProgress current="confirm" backHref="/my-trips" />
         <div className="confirmation-hero">
           <p className="confirmation-kicker">Booking confirmed</p>
           <h1 className="section-title">You’re all set</h1>
@@ -225,7 +227,7 @@ export default function ConfirmationClient() {
                       </div>
                       <div>
                         <dt>Seat</dt>
-                        <dd>{confirmation.selectedSeat || "—"}</dd>
+                        <dd>{formatSelectedSeats(confirmation.selectedSeat) || "—"}</dd>
                       </div>
                     </>
                   ) : null}
@@ -272,8 +274,12 @@ export default function ConfirmationClient() {
           <Link className="btn-primary" href="/my-trips">
             View booking / My Trips
           </Link>
-          <button type="button" className="btn-ghost" onClick={() => window.print()}>
-            Download confirmation
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => downloadTicketPdf(ticketFromBooking(confirmation, item))}
+          >
+            Download ticket
           </button>
           <a
             className="btn-ghost"

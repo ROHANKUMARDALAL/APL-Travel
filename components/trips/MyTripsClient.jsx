@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import AccountShell from "@/components/account/AccountShell";
 import { useAuth } from "@/components/auth/useAuth";
 import { findResultById } from "@/lib/booking";
 import {
+  BOOKING_SERVICES,
   TRIP_PHASES,
   bookingStatusLabel,
   getBookingDateLabel,
@@ -82,7 +84,13 @@ function TripCard({ booking }) {
 
 export default function MyTripsClient() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const serviceFromUrl = BOOKING_SERVICES.some((item) => item.id === searchParams.get("service"))
+    ? searchParams.get("service")
+    : "all";
   const [phase, setPhase] = useState("upcoming");
+  const [serviceFilter, setServiceFilter] = useState(serviceFromUrl);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,7 +99,15 @@ export default function MyTripsClient() {
     setLoading(true);
     loadAccountBookings()
       .then((rows) => {
-        if (!ignore) setBookings(rows.filter((row) => row.tripPhase === phase));
+        if (!ignore) {
+          setBookings(
+            rows.filter(
+              (row) =>
+                row.tripPhase === phase &&
+                (serviceFilter === "all" || row.service === serviceFilter),
+            ),
+          );
+        }
       })
       .catch(() => {
         if (!ignore) setBookings([]);
@@ -102,7 +118,19 @@ export default function MyTripsClient() {
     return () => {
       ignore = true;
     };
-  }, [phase, user?.id]);
+  }, [phase, serviceFilter, user?.id]);
+
+  useEffect(() => {
+    setServiceFilter(serviceFromUrl);
+  }, [serviceFromUrl]);
+
+  function selectService(id) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id === "all") params.delete("service");
+    else params.set("service", id);
+    const next = params.toString();
+    router.replace(next ? `/my-trips?${next}` : "/my-trips", { scroll: false });
+  }
 
   return (
     <AccountShell title="My Trips">
@@ -117,6 +145,21 @@ export default function MyTripsClient() {
         <Link className="btn-ghost" href="/support">
           Support Center
         </Link>
+      </div>
+
+      <div className="trip-tabs" role="tablist" aria-label="Booking service">
+        {BOOKING_SERVICES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={serviceFilter === item.id}
+            className={`trip-tab ${serviceFilter === item.id ? "is-active" : ""}`}
+            onClick={() => selectService(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       <div className="trip-tabs" role="tablist" aria-label="Trip filters">
@@ -140,10 +183,14 @@ export default function MyTripsClient() {
         </section>
       ) : bookings.length === 0 ? (
         <section className="checkout-section account-panel">
-          <h2 className="checkout-section-title">No {phase} trips</h2>
+          <h2 className="checkout-section-title">
+            No {phase}{" "}
+            {serviceFilter === "all" ? "trips" : BOOKING_SERVICES.find((item) => item.id === serviceFilter)?.label.toLowerCase()}
+          </h2>
           <p className="section-copy">
-            When you book a {phase === "upcoming" ? "new trip" : "trip in this state"}, it
-            will appear here.
+            {serviceFilter === "all"
+              ? `When you book a ${phase === "upcoming" ? "new trip" : "trip in this state"}, it will appear here.`
+              : `Your ${phase} ${BOOKING_SERVICES.find((item) => item.id === serviceFilter)?.label.toLowerCase()} will appear here.`}
           </p>
           <div className="account-inline-actions">
             <Link className="btn-primary" href="/#search">

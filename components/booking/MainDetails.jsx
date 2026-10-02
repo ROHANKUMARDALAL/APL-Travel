@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { formatDuration, formatPriceParts, formatShortDate } from "@/lib/resultsHelpers";
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode, convertAmount } from "@/data/markets";
-import { BUS_SEAT_MAP, BUS_TAKEN_SEATS } from "@/lib/booking";
+import { BUS_SEAT_MAP, BUS_TAKEN_SEATS, MAX_BUS_SEATS, formatSelectedSeats } from "@/lib/booking";
 
 export function FlightMainDetails({ item, searchQuery }) {
   const marketId = getActiveMarketId();
@@ -207,7 +207,7 @@ export function HotelMainDetails({
   );
 }
 
-export function BusMainDetails({ item, searchQuery, selectedSeat, onSelectSeat }) {
+export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggleSeat, seatMessage }) {
   const marketId = getActiveMarketId();
 
   return (
@@ -268,9 +268,9 @@ export function BusMainDetails({ item, searchQuery, selectedSeat, onSelectSeat }
         </p>
       </div>
 
-      <h2 className="booking-subsection-title">Select a seat</h2>
+      <h2 className="booking-subsection-title">Select seats</h2>
       <p className="booking-section-copy">
-        Choose an available seat for this coach.
+        Click a free seat to add it. Click a selected seat again to remove it. You can choose up to {MAX_BUS_SEATS} seats.
       </p>
       <div className="seat-map" role="group" aria-label="Seat map">
         {BUS_SEAT_MAP.map((row, rowIndex) => (
@@ -278,15 +278,16 @@ export function BusMainDetails({ item, searchQuery, selectedSeat, onSelectSeat }
             {row.map((seat, seatIndex) => {
               if (!seat) return <span key={`aisle-${rowIndex}-${seatIndex}`} className="seat-aisle" />;
               const taken = BUS_TAKEN_SEATS.includes(seat);
-              const selected = selectedSeat === seat;
+              const selected = selectedSeats.includes(seat);
+              const full = !selected && selectedSeats.length >= MAX_BUS_SEATS;
               return (
                 <button
                   key={seat}
                   type="button"
-                  className={`seat-btn ${taken ? "is-taken" : ""} ${selected ? "is-selected" : ""}`}
+                  className={`seat-btn ${taken ? "is-taken" : ""} ${selected ? "is-selected" : ""} ${full ? "is-full" : ""}`}
                   disabled={taken}
                   aria-pressed={selected}
-                  onClick={() => onSelectSeat(seat)}
+                  onClick={() => onToggleSeat(seat)}
                 >
                   {seat}
                 </button>
@@ -296,8 +297,10 @@ export function BusMainDetails({ item, searchQuery, selectedSeat, onSelectSeat }
         ))}
       </div>
       <p className="booking-meta">
-        Selected seat: <strong>{selectedSeat || "None"}</strong>
+        Selected seats ({selectedSeats.length}/{MAX_BUS_SEATS}):{" "}
+        <strong>{formatSelectedSeats(selectedSeats) || "None"}</strong>
       </p>
+      {seatMessage ? <p className="field-error">{seatMessage}</p> : null}
     </section>
   );
 }

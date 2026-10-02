@@ -1,13 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
-
-const STEPS = [
-  { id: "trip", label: "Trip" },
-  { id: "traveller", label: "Traveller" },
-  { id: "extras", label: "Extras" },
-  { id: "payment", label: "Payment" },
-];
+import BookingProgress from "@/components/booking/BookingProgress";
 
 export function CheckoutShell({ children }) {
   return (
@@ -22,24 +16,6 @@ export function CheckoutShell({ children }) {
   );
 }
 
-export function CheckoutProgress({ current = "payment" }) {
-  const currentIndex = STEPS.findIndex((step) => step.id === current);
-  return (
-    <nav className="checkout-progress" aria-label="Checkout progress">
-      <ol className="booking-progress-list">
-        {STEPS.map((step, index) => {
-          const state =
-            index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
-          return (
-            <li key={step.id} className={`booking-progress-item is-${state}`}>
-              <span className="booking-progress-dot" aria-hidden="true">
-                {index + 1}
-              </span>
-              <span className="booking-progress-label">{step.label}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
+export function CheckoutProgress({ current = "payment", backHref = "" }) {
+  return <BookingProgress current={current} backHref={backHref} />;
 }

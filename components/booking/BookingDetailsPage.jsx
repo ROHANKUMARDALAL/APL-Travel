@@ -27,8 +27,10 @@ import {
   findResultById,
   getExtraPrice,
   getHotelRooms,
+  MAX_BUS_SEATS,
   nightsFromSearch,
   saveBookingDraft,
+  BUS_TAKEN_SEATS,
 } from "@/lib/booking";
 import {
   parseBusSearchParams,
@@ -39,8 +41,8 @@ import { AUTH_EVENT, getCurrentUser } from "@/lib/auth";
 import {
   applySavedTraveller,
   fetchSavedTravellers,
-  saveTravellerProfile,
 } from "@/lib/api/travellers";
+import { isValidAge, ageFromDob } from "@/components/booking/TravellerForms";
 import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
 
 function emailOk(value) {
@@ -162,7 +164,7 @@ export default function BookingDetailsPage({ service }) {
   );
 
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [selectedSeat, setSelectedSeat] = useState("");
+  const [selectedSeats, setSelectedSeats] = useState([]);
   const [selectedExtraIds, setSelectedExtraIds] = useState([]);
   const [errors, setErrors] = useState({});
   const [formMessage, setFormMessage] = useState("");
@@ -177,15 +179,13 @@ export default function BookingDetailsPage({ service }) {
       id: `guest-${index + 2}`,
       firstName: "",
       lastName: "",
+      age: "",
     }));
   });
-  const [busPassenger, setBusPassenger] = useState({
-    firstName: "",
-    lastName: "",
-  });
+  const [busPassengers, setBusPassengers] = useState([]);
+  const [seatMessage, setSeatMessage] = useState("");
   const [contact, setContact] = useState({ email: "", phone: "" });
   const [savedTravellers, setSavedTravellers] = useState([]);
-  const [travellerNote, setTravellerNote] = useState("");
   const [accountReady, setAccountReady] = useState(false);
   const [pageReady, setPageReady] = useState(false);
   const [picker, setPicker] = useState(null);
@@ -241,6 +241,7 @@ export default function BookingDetailsPage({ service }) {
     return (
       <SiteChrome activeService={service}>
         <div className="container-page booking-page">
+          <BookingProgress current="details" backHref={resultsHref} />
           <BookingNotFound resultsHref={resultsHref} />
         </div>
       </SiteChrome>
@@ -260,6 +261,7 @@ export default function BookingDetailsPage({ service }) {
     selectedExtras,
     nights,
     marketId,
+    seatCount: service === "bus" ? selectedSeats.length : 1,
     discount: 0,
   });
 
@@ -268,6 +270,26 @@ export default function BookingDetailsPage({ service }) {
     label: extra.label,
     amount: getExtraPrice(extra, nights, marketId),
   }));
+
+  function toggleBusSeat(seat) {
+    if (BUS_TAKEN_SEATS.includes(seat)) return;
+    if (selectedSeats.includes(seat)) {
+      setSelectedSeats((current) => current.filter((id) => id !== seat));
+      setBusPassengers((people) => people.filter((person) => person.seat !== seat));
+      setSeatMessage("");
+      return;
+    }
+    if (selectedSeats.length >= MAX_BUS_SEATS) {
+      setSeatMessage(`You can select up to ${MAX_BUS_SEATS} seats.`);
+      return;
+    }
+    setSelectedSeats((current) => [...current, seat]);
+    setBusPassengers((people) => [
+      ...people,
+      { id: seat, seat, firstName: "", lastName: "" },
+    ]);
+    setSeatMessage("");
+  }
 
   function selectSavedTraveller(person) {
     setPicker({ kind: "flight", personId: person.id, type: person.type });
@@ -285,35 +307,23 @@ export default function BookingDetailsPage({ service }) {
       setHotelLead({
         firstName: saved.firstName || "",
         lastName: saved.lastName || "",
+        age: ageFromDob(saved.dateOfBirth),
       });
     } else if (picker.kind === "bus") {
-      setBusPassenger({
-        firstName: saved.firstName || "",
-        lastName: saved.lastName || "",
-      });
+      setBusPassengers((prev) =>
+        prev.map((person) =>
+          person.seat === picker.seat
+            ? {
+                ...person,
+                firstName: saved.firstName || "",
+                lastName: saved.lastName || "",
+                age: ageFromDob(saved.dateOfBirth),
+              }
+            : person,
+        ),
+      );
     }
     setPicker(null);
-  }
-
-  async function rememberTraveller(person) {
-    if (!getCurrentUser()) return null;
-    if (!person.firstName?.trim() || !person.lastName?.trim()) {
-      setTravellerNote("Enter a first and last name before saving this traveller.");
-      return null;
-    }
-    const saved = await saveTravellerProfile(person);
-    if (!saved) return null;
-    setSavedTravellers((prev) => {
-      const rest = prev.filter((row) => row.id !== saved.id);
-      return [saved, ...rest];
-    });
-    setFlightTravellers((prev) =>
-      prev.map((row) =>
-        row.id === person.id ? { ...row, savedTravellerId: saved.id } : row,
-      ),
-    );
-    setTravellerNote(`${saved.firstName} ${saved.lastName} is on your traveller list.`);
-    return saved;
   }
 
   function toggleExtra(extraId) {
@@ -352,13 +362,23 @@ export default function BookingDetailsPage({ service }) {
     if (service === "hotel") {
       if (!hotelLead.firstName.trim()) next.leadFirst = "Required";
       if (!hotelLead.lastName.trim()) next.leadLast = "Required";
+      if (!isValidAge(hotelLead.age)) next.leadAge = "Enter age";
+      hotelAdditional.forEach((guest) => {
+        if (!isValidAge(guest.age)) next[`addAge-${guest.id}`] = "Enter age";
+      });
       if (!selectedRoomId) next.room = "Select a room";
     }
 
     if (service === "bus") {
-      if (!busPassenger.firstName.trim()) next.firstName = "Required";
-      if (!busPassenger.lastName.trim()) next.lastName = "Required";
-      if (!selectedSeat) next.seat = "Select a seat";
+      if (!selectedSeats.length) next.seat = "Select at least one seat";
+      if (selectedSeats.length > MAX_BUS_SEATS) {
+        next.seat = `Select up to ${MAX_BUS_SEATS} seats`;
+      }
+      busPassengers.forEach((person) => {
+        if (!person.firstName.trim()) next[`${person.seat}-firstName`] = "Required";
+        if (!person.lastName.trim()) next[`${person.seat}-lastName`] = "Required";
+        if (!isValidAge(person.age)) next[`${person.seat}-age`] = "Enter age";
+      });
     }
 
     setErrors(next);
@@ -373,37 +393,21 @@ export default function BookingDetailsPage({ service }) {
       return;
     }
 
-    let nextFlightTravellers = flightTravellers;
-    if (service === "flight" && getCurrentUser()) {
-      nextFlightTravellers = [];
-      for (const person of flightTravellers) {
-        try {
-          const saved = await saveTravellerProfile(person);
-          nextFlightTravellers.push(
-            saved ? { ...person, savedTravellerId: saved.id } : person,
-          );
-        } catch {
-          nextFlightTravellers.push(person);
-        }
-      }
-      setFlightTravellers(nextFlightTravellers);
-    }
-
     const selectedRoom = rooms.find((room) => room.id === selectedRoomId) || null;
     const draft = {
       service,
       id: item.id,
       searchQuery,
       selectedRoomId: service === "hotel" ? selectedRoomId : null,
-      selectedSeat: service === "bus" ? selectedSeat : null,
+      selectedSeat: service === "bus" ? selectedSeats : null,
       extras: selectedExtraIds,
       contact,
       travellers:
         service === "flight"
-          ? nextFlightTravellers
+          ? flightTravellers
           : service === "hotel"
             ? { lead: hotelLead, additional: hotelAdditional }
-            : busPassenger,
+            : busPassengers,
       totals,
       apiBooking:
         service === "flight" && item.searchId && item.aplFareId && item.quote
@@ -429,7 +433,7 @@ export default function BookingDetailsPage({ service }) {
 
     const href = buildCheckoutHref(service, item.id, searchQuery, {
       roomId: selectedRoomId,
-      seat: selectedSeat,
+      seat: selectedSeats,
       extras: selectedExtraIds,
     });
     router.push(href);
@@ -458,7 +462,7 @@ export default function BookingDetailsPage({ service }) {
     <SiteChrome activeService={service}>
       <div className="booking-page">
         <div className="container-page booking-page-inner">
-          <BookingProgress current="details" />
+          <BookingProgress current="details" backHref={resultsHref} />
 
           <div className="booking-top-actions">
             <Link className="btn-ghost" href={resultsHref}>
@@ -485,8 +489,9 @@ export default function BookingDetailsPage({ service }) {
                 <BusMainDetails
                   item={item}
                   searchQuery={searchQuery}
-                  selectedSeat={selectedSeat}
-                  onSelectSeat={setSelectedSeat}
+                  selectedSeats={selectedSeats}
+                  onToggleSeat={toggleBusSeat}
+                  seatMessage={seatMessage}
                 />
               ) : null}
 
@@ -512,16 +517,12 @@ export default function BookingDetailsPage({ service }) {
                   showPassport={looksInternational(searchQuery)}
                   savedTravellers={accountReady ? savedTravellers : []}
                   onSelectSaved={accountReady && getCurrentUser() ? selectSavedTraveller : null}
-                  onSaveTraveller={(person) =>
-                    rememberTraveller({ ...person, type: person.type || "adult" })
-                  }
                   contactHint={
                     accountReady && getCurrentUser()
                       ? "Email and phone are filled from your profile. Change them here if this trip should use a different contact."
                       : ""
                   }
                 />
-                {travellerNote ? <p className="result-card-meta">{travellerNote}</p> : null}
                 </>
               ) : null}
 
@@ -548,13 +549,21 @@ export default function BookingDetailsPage({ service }) {
 
               {service === "bus" ? (
                 <BusPassengerForm
-                  passenger={busPassenger}
-                  onChangePassenger={setBusPassenger}
+                  passengers={busPassengers}
+                  onChangePassenger={(seat, patch) =>
+                    setBusPassengers((prev) =>
+                      prev.map((person) =>
+                        person.seat === seat ? { ...person, ...patch } : person,
+                      ),
+                    )
+                  }
                   contact={contact}
                   onChangeContact={setContact}
                   errors={errors}
                   onOpenTravellers={
-                    accountReady && getCurrentUser() ? () => setPicker({ kind: "bus" }) : null
+                    accountReady && getCurrentUser()
+                      ? (person) => setPicker({ kind: "bus", seat: person.seat })
+                      : null
                   }
                 />
               ) : null}

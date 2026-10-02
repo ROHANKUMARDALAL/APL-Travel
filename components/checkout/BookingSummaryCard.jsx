@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { BOOKING_EXTRAS, getHotelRooms, nightsFromSearch } from "@/lib/booking";
+import { BOOKING_EXTRAS, formatSelectedSeats, getHotelRooms, nightsFromSearch } from "@/lib/booking";
+import { AgeField } from "@/components/booking/TravellerForms";
 import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
 import { getActiveMarketId } from "@/data/markets";
 
@@ -53,9 +54,9 @@ export default function BookingSummaryCard({
     rows = [
       ["Date", formatShortDate(query.date, marketId)],
       ["Operator", item.operator],
-      ["Seat", draft.selectedSeat || "Not selected"],
+      ["Seats", formatSelectedSeats(draft.selectedSeat) || "Not selected"],
       ["Bus type", item.busType],
-      ["Passengers", String(query.passengers || query.adults || 1)],
+      ["Passengers", String(Array.isArray(draft.travellers) ? draft.travellers.length : draft.selectedSeat ? 1 : 0)],
     ];
   }
 
@@ -93,76 +94,124 @@ export default function BookingSummaryCard({
   );
 }
 
+function GuestAgeCard({ title, name, id, age, error, onAge, onChoose }) {
+  return (
+    <article className="checkout-guest-card">
+      <div className="checkout-guest-head">
+        <div>
+          <h3 className="guest-block-title">{title}</h3>
+          <p className="checkout-guest-name">{name}</p>
+        </div>
+        {onChoose ? (
+          <button type="button" className="traveller-list-btn" onClick={onChoose}>
+            Choose from list
+          </button>
+        ) : null}
+      </div>
+      <AgeField id={id} value={age} error={error} onChange={onAge} />
+    </article>
+  );
+}
+
 export function TravellerReview({
   service,
   draft,
   detailsHref,
   onChangeContact,
   onChooseTraveller,
+  onChangeAge,
+  ageErrors = {},
 }) {
-  let lines = [];
-
-  if (service === "flight") {
-    lines = (draft.travellers || []).map((person, index) => {
-      const name = [person.title, person.firstName, person.lastName]
-        .filter(Boolean)
-        .join(" ");
-      return `Traveller ${index + 1}: ${name || "Incomplete"}`;
-    });
-  } else if (service === "hotel") {
-    const lead = draft.travellers?.lead;
-    lines = [
-      `Lead guest: ${[lead?.firstName, lead?.lastName].filter(Boolean).join(" ") || "Incomplete"}`,
-    ];
-    (draft.travellers?.additional || []).forEach((guest, index) => {
-      const name = [guest.firstName, guest.lastName].filter(Boolean).join(" ");
-      if (name) lines.push(`Guest ${index + 2}: ${name}`);
-    });
-  } else {
-    const p = draft.travellers || {};
-    lines = [
-      `Passenger: ${[p.firstName, p.lastName].filter(Boolean).join(" ") || "Incomplete"}`,
-    ];
-  }
+  const hotelLead = draft.travellers?.lead || {};
+  const hotelGuests = Array.isArray(draft.travellers?.additional) ? draft.travellers.additional : [];
+  const busPeople = Array.isArray(draft.travellers) ? draft.travellers : [];
 
   return (
-    <section className="checkout-section">
+    <section className="checkout-section" id="checkout-guests">
       <div className="checkout-section-head">
         <h2 className="checkout-section-title">
           {service === "hotel" ? "Guest review" : "Traveller review"}
         </h2>
         <Link href={`${detailsHref}#traveller`}>Change</Link>
       </div>
-      <div className="checkout-traveller-actions">
-        {service === "flight"
-          ? (draft.travellers || []).map((person, index) => (
-              <button
-                key={person.id || index}
-                type="button"
-                className="traveller-list-btn"
-                onClick={() =>
-                  onChooseTraveller?.({ kind: "flight", index, type: person.type || "adult" })
-                }
-              >
-                Choose traveller {index + 1}
-                {person.type ? ` · ${person.type}` : ""} from list
-              </button>
-            ))
-          : (
-              <button
-                type="button"
-                className="traveller-list-btn"
-                onClick={() => onChooseTraveller?.({ kind: service === "hotel" ? "hotel" : "bus" })}
-              >
-                Choose from traveller list
-              </button>
-            )}
-      </div>
-      <ul className="checkout-review-list">
-        {lines.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
+
+      {service === "hotel" ? (
+        <div className="checkout-guest-list">
+          <GuestAgeCard
+            title="Lead guest"
+            name={[hotelLead.firstName, hotelLead.lastName].filter(Boolean).join(" ") || "Name not added"}
+            id="checkout-lead-age"
+            age={hotelLead.age}
+            error={ageErrors.leadAge}
+            onAge={(age) => onChangeAge?.({ kind: "hotel-lead", age })}
+            onChoose={onChooseTraveller ? () => onChooseTraveller({ kind: "hotel" }) : null}
+          />
+          {hotelGuests.map((guest, index) => (
+            <GuestAgeCard
+              key={guest.id || index}
+              title={`Guest ${index + 2}`}
+              name={[guest.firstName, guest.lastName].filter(Boolean).join(" ") || "Name not added"}
+              id={`checkout-age-${guest.id || index}`}
+              age={guest.age}
+              error={ageErrors[`addAge-${guest.id}`]}
+              onAge={(age) => onChangeAge?.({ kind: "hotel-guest", id: guest.id, age })}
+            />
+          ))}
+        </div>
+      ) : service === "bus" ? (
+        <div className="checkout-guest-list">
+          {busPeople.map((person, index) => (
+            <GuestAgeCard
+              key={person.seat || person.id || index}
+              title={`Seat ${person.seat || index + 1}`}
+              name={[person.firstName, person.lastName].filter(Boolean).join(" ") || "Name not added"}
+              id={`checkout-bus-age-${person.seat || index}`}
+              age={person.age}
+              error={ageErrors[`age-${person.seat || index}`]}
+              onAge={(age) => onChangeAge?.({ kind: "bus", seat: person.seat, index, age })}
+              onChoose={
+                onChooseTraveller
+                  ? () =>
+                      onChooseTraveller({
+                        kind: "bus",
+                        index,
+                        type: person.type || "adult",
+                      })
+                  : null
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <ul className="checkout-review-list">
+          {(draft.travellers || []).map((person, index) => {
+            const name = [person.title, person.firstName, person.lastName].filter(Boolean).join(" ");
+            return <li key={person.id || index}>Traveller {index + 1}: {name || "Incomplete"}</li>;
+          })}
+        </ul>
+      )}
+
+      {service === "flight" && onChooseTraveller ? (
+        <div className="checkout-traveller-actions">
+          {(draft.travellers || []).map((person, index) => (
+            <button
+              key={person.id || index}
+              type="button"
+              className="traveller-list-btn"
+              onClick={() =>
+                onChooseTraveller?.({
+                  kind: "flight",
+                  index,
+                  type: person.type || "adult",
+                })
+              }
+            >
+              Choose traveller {index + 1}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="checkout-contact-box">
         <h3 className="booking-subsection-title">Contact information</h3>
         <p className="booking-section-copy">
