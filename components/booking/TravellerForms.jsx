@@ -2,6 +2,7 @@
 
 import DatePicker from "@/components/ui/DatePicker";
 import { today } from "@/lib/dateUtils";
+import { dobBoundsForType, dobErrorForType } from "@/lib/travellerAge";
 
 export function FieldError({ message }) {
   if (!message) return null;
@@ -23,6 +24,36 @@ export function ageFromDob(value) {
   const month = now.getMonth() - born.getMonth();
   if (month < 0 || (month === 0 && now.getDate() < born.getDate())) age -= 1;
   return age >= 0 && age <= 120 ? String(age) : "";
+}
+
+function TravellerListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+      <path
+        d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="9" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M19 8v6M22 11h-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function ChooseTravellerButton({ onClick, children = "Choose from traveller list" }) {
+  if (!onClick) return null;
+  return (
+    <button type="button" className="traveller-list-btn" onClick={onClick}>
+      <TravellerListIcon />
+      <span>{children}</span>
+    </button>
+  );
 }
 
 export function AgeField({ id, value, error, onChange }) {
@@ -59,7 +90,24 @@ function dateToIso(date) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-const BIRTH_MIN = new Date(1920, 0, 1);
+function TravellerDobField({ id, type, value, error, onChange }) {
+  const bounds = dobBoundsForType(type || "adult", today());
+  const helper = error || dobErrorForType(value, type || "adult");
+  return (
+    <div className="search-field">
+      <DatePicker
+        id={id}
+        label="Date of birth"
+        value={isoToDate(value)}
+        minDate={bounds.minDate}
+        maxDate={bounds.maxDate}
+        placeholder="Select date of birth"
+        onChange={(date) => onChange(dateToIso(date))}
+      />
+      <FieldError message={helper} />
+    </div>
+  );
+}
 
 export function ContactFields({ values, errors, onChange }) {
   return (
@@ -122,15 +170,7 @@ export function FlightTravellerForm({
             Traveller {index + 1}
             {person.type !== "adult" ? ` · ${person.type}` : ""}
           </h3>
-          {onSelectSaved ? (
-            <button
-              type="button"
-              className="traveller-list-btn"
-              onClick={() => onSelectSaved(person)}
-            >
-              Choose from traveller list
-            </button>
-          ) : null}
+          <ChooseTravellerButton onClick={onSelectSaved ? () => onSelectSaved(person) : null} />
           <div className="booking-form-grid">
             <div className="search-field">
               <label className="field-label" htmlFor={`title-${person.id}`}>
@@ -182,18 +222,13 @@ export function FlightTravellerForm({
               />
               <FieldError message={errors[`${person.id}-lastName`]} />
             </div>
-            <div className="search-field">
-              <DatePicker
-                id={`dob-${person.id}`}
-                label="Date of birth"
-                value={isoToDate(person.dob)}
-                minDate={BIRTH_MIN}
-                maxDate={today()}
-                placeholder="Select date of birth"
-                onChange={(date) => onChangeTraveller(person.id, { dob: dateToIso(date) })}
-              />
-              <FieldError message={errors[`${person.id}-dob`]} />
-            </div>
+            <TravellerDobField
+              id={`dob-${person.id}`}
+              type={person.type || "adult"}
+              value={person.dob}
+              error={errors[`${person.id}-dob`]}
+              onChange={(dob) => onChangeTraveller(person.id, { dob })}
+            />
             <div className="search-field">
               <label className="field-label" htmlFor={`gender-${person.id}`}>
                 Gender
@@ -292,11 +327,7 @@ export function HotelGuestForm({
 
       <div className="guest-block">
         <h3 className="guest-block-title">Lead guest</h3>
-        {onOpenTravellers ? (
-          <button type="button" className="traveller-list-btn" onClick={onOpenTravellers}>
-            Choose from traveller list
-          </button>
-        ) : null}
+        <ChooseTravellerButton onClick={onOpenTravellers || null} />
         <div className="booking-form-grid">
           <div className="search-field">
             <label className="field-label" htmlFor="lead-first">
@@ -402,15 +433,9 @@ export function BusPassengerForm({
             <h3 className="guest-block-title">
               Seat {passenger.seat || index + 1}
             </h3>
-            {onOpenTravellers ? (
-              <button
-                type="button"
-                className="traveller-list-btn"
-                onClick={() => onOpenTravellers(passenger)}
-              >
-                Choose from traveller list
-              </button>
-            ) : null}
+            <ChooseTravellerButton
+              onClick={onOpenTravellers ? () => onOpenTravellers(passenger) : null}
+            />
             <div className="booking-form-grid">
               <div className="search-field">
                 <label className="field-label" htmlFor={`bus-first-${passenger.seat}`}>

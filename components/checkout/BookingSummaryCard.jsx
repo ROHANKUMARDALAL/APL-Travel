@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { BOOKING_EXTRAS, formatSelectedSeats, getHotelRooms, nightsFromSearch } from "@/lib/booking";
 import { AgeField } from "@/components/booking/TravellerForms";
-import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
+import { formatShortDate } from "@/lib/resultsHelpers";
 import { getActiveMarketId } from "@/data/markets";
+import FlightPaymentSummary from "@/components/checkout/FlightPaymentSummary";
 
 export default function BookingSummaryCard({
   service,
@@ -24,19 +25,34 @@ export default function BookingSummaryCard({
       ? getHotelRooms(item.id).find((r) => r.id === draft.selectedRoomId)
       : null;
 
+  if (service === "flight") {
+    return (
+      <>
+        <FlightPaymentSummary
+          item={item}
+          searchQuery={query}
+          travellers={Array.isArray(draft.travellers) ? draft.travellers : []}
+          fareLabel={draft.selectedFare?.label || item.selectedFareLabel || ""}
+          detailsHref={detailsHref}
+          resultsHref={resultsHref}
+        />
+        {selectedExtras.length ? (
+          <div className="checkout-extras-chip-row pay-flight-extras">
+            {selectedExtras.map((extra) => (
+              <span key={extra.id} className="checkout-chip">
+                {extra.label}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
   let title = "";
   let rows = [];
 
-  if (service === "flight") {
-    title = `${item.from.city} (${item.from.code}) → ${item.to.city} (${item.to.code})`;
-    rows = [
-      ["Dates", [formatShortDate(query.depart, marketId), query.return ? `Return ${formatShortDate(query.return, marketId)}` : null].filter(Boolean).join(" · ")],
-      ["Travellers", travellerLabel(query)],
-      ["Airline", item.airline],
-      ["Cabin", item.cabin],
-      ["Baggage", item.baggage],
-    ];
-  } else if (service === "hotel") {
+  if (service === "hotel") {
     const nights = nightsFromSearch(query);
     title = item.name;
     rows = [

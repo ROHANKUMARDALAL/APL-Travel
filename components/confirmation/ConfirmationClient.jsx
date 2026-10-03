@@ -13,6 +13,8 @@ import { loadConfirmation, saveConfirmation, whatHappensNext } from "@/lib/confi
 import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
 import { getActiveMarketId } from "@/data/markets";
 import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
+import { withSelectedFare } from "@/lib/fareSelection";
+import ETicketPreview from "@/components/confirmation/ETicketPreview";
 
 function toCalendarStamp(dateStr) {
   if (!dateStr) return null;
@@ -120,7 +122,22 @@ export default function ConfirmationClient() {
   }
 
   const service = confirmation.service;
-  const item = findResultById(service, confirmation.id);
+  const catalogItem = findResultById(service, confirmation.id);
+  const pricedCatalog =
+    service === "flight" && catalogItem
+      ? withSelectedFare(
+          catalogItem,
+          confirmation.selectedFareId || confirmation.selectedFare?.id || "",
+        ) || catalogItem
+      : catalogItem;
+  const item = pricedCatalog
+    ? {
+        ...pricedCatalog,
+        selectedFare: confirmation.selectedFare || pricedCatalog.selectedFare,
+        selectedFareLabel:
+          confirmation.selectedFare?.label || pricedCatalog.selectedFareLabel,
+      }
+    : null;
   const marketId = getActiveMarketId();
   const query = confirmation.searchQuery || {};
   const extras = (BOOKING_EXTRAS[service] || []).filter((extra) =>
@@ -270,7 +287,9 @@ export default function ConfirmationClient() {
           </section>
         </div>
 
-        <div className="confirmation-actions">
+        <ETicketPreview confirmation={confirmation} item={item} />
+
+        <div className="confirmation-actions no-print">
           <Link className="btn-primary" href="/my-trips">
             View booking / My Trips
           </Link>
@@ -279,7 +298,10 @@ export default function ConfirmationClient() {
             className="btn-ghost"
             onClick={() => downloadTicketPdf(ticketFromBooking(confirmation, item))}
           >
-            Download ticket
+            Download e-ticket PDF
+          </button>
+          <button type="button" className="btn-ghost" onClick={() => window.print()}>
+            Print e-ticket
           </button>
           <a
             className="btn-ghost"

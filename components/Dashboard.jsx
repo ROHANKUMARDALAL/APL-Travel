@@ -8,6 +8,7 @@ import ServiceOffers from "@/components/ServiceOffers";
 import BrandStrip from "@/components/BrandStrip";
 import TravelNotes from "@/components/TravelNotes";
 import Testimonials from "@/components/Testimonials";
+import HomeFaqs from "@/components/HomeFaqs";
 import Footer from "@/components/Footer";
 import { AIRLINE_BRANDS, FOOTER, PARTNER_BRANDS } from "@/data/static";
 import {
@@ -134,6 +135,7 @@ export default function Dashboard() {
         variant="cards"
       />
       <Testimonials />
+      <HomeFaqs />
       <Footer />
     </div>
   );

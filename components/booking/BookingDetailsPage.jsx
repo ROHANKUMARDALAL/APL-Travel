@@ -43,7 +43,9 @@ import {
   fetchSavedTravellers,
 } from "@/lib/api/travellers";
 import { isValidAge, ageFromDob } from "@/components/booking/TravellerForms";
+import { dobErrorForType } from "@/lib/travellerAge";
 import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
+import { selectedFareSnapshot, withSelectedFare } from "@/lib/fareSelection";
 
 function emailOk(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || "");
@@ -107,20 +109,25 @@ function queryFromParams(service, searchParams) {
   if (service === "flight") {
     const parsed = parseFlightSearchParams(searchParams);
     return {
+      trip: parsed.tripType,
       from: parsed.from,
       to: parsed.to,
       depart: searchParams.get("depart") || "",
-      return: searchParams.get("return") || "",
+      return: parsed.tripType === "return" ? searchParams.get("return") || "" : "",
       adults: String(parsed.adults),
       children: String(parsed.children),
       infants: String(parsed.infants),
       fareType: parsed.fareType,
+      originCityCode: parsed.originCityCode,
+      destinationCityCode: parsed.destinationCityCode,
+      legs: parsed.tripType === "multi" ? searchParams.get("legs") || "" : "",
     };
   }
   if (service === "hotel") {
     const parsed = parseHotelSearchParams(searchParams);
     return {
       destination: parsed.destination,
+      cityCode: parsed.cityCode,
       checkIn: searchParams.get("checkIn") || "",
       checkOut: searchParams.get("checkOut") || "",
       guests: String(parsed.guests),
@@ -248,6 +255,18 @@ export default function BookingDetailsPage({ service }) {
     );
   }
 
+  const fareId = searchParams.get("fareId") || item.selectedFareId || "";
+  const pricedItem =
+    service === "flight" ? withSelectedFare(item, fareId) || item : item;
+  const activeFare = selectedFareSnapshot(item, fareId);
+
+  function selectFare(nextFareId) {
+    if (!nextFareId || nextFareId === fareId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("fareId", nextFareId);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) || null;
   const extrasCatalog = BOOKING_EXTRAS[service] || [];
   const selectedExtras = extrasCatalog.filter((extra) =>
@@ -256,7 +275,7 @@ export default function BookingDetailsPage({ service }) {
 
   const totals = calcBookingTotals({
     service,
-    item,
+    item: pricedItem,
     room: selectedRoom,
     selectedExtras,
     nights,
@@ -346,6 +365,10 @@ export default function BookingDetailsPage({ service }) {
         if (!person.firstName.trim()) next[`${person.id}-firstName`] = "Required";
         if (!person.lastName.trim()) next[`${person.id}-lastName`] = "Required";
         if (!person.dob) next[`${person.id}-dob`] = "Required";
+        else {
+          const dobMessage = dobErrorForType(person.dob, person.type || "adult");
+          if (dobMessage) next[`${person.id}-dob`] = dobMessage;
+        }
         if (!person.gender) next[`${person.id}-gender`] = "Required";
         if (!person.nationality.trim()) {
           next[`${person.id}-nationality`] = "Required";
@@ -394,12 +417,16 @@ export default function BookingDetailsPage({ service }) {
     }
 
     const selectedRoom = rooms.find((room) => room.id === selectedRoomId) || null;
+    const fareSnapshot = service === "flight" ? selectedFareSnapshot(item, fareId) : null;
+    const bookingItem = service === "flight" ? pricedItem : item;
     const draft = {
       service,
       id: item.id,
       searchQuery,
       selectedRoomId: service === "hotel" ? selectedRoomId : null,
       selectedSeat: service === "bus" ? selectedSeats : null,
+      selectedFareId: fareSnapshot?.id || fareId || null,
+      selectedFare: fareSnapshot,
       extras: selectedExtraIds,
       contact,
       travellers:
@@ -410,13 +437,15 @@ export default function BookingDetailsPage({ service }) {
             : busPassengers,
       totals,
       apiBooking:
-        service === "flight" && item.searchId && item.aplFareId && item.quote
+        service === "flight" && bookingItem.searchId && bookingItem.quote
           ? {
               kind: "flight",
-              searchId: item.searchId,
-              aplFlightId: item.id,
-              aplFareId: item.aplFareId,
-              quote: item.quote,
+              searchId: bookingItem.searchId,
+              aplFlightId: bookingItem.id,
+              aplFareId: bookingItem.aplFareId || fareSnapshot?.aplFareId || null,
+              quote: fareSnapshot?.quote || bookingItem.quote,
+              selectedFareQuote: fareSnapshot?.quote || bookingItem.quote,
+              fareLabel: fareSnapshot?.label || bookingItem.selectedFareLabel || null,
             }
           : service === "hotel" && item.searchId && selectedRoom?.quote
             ? {
@@ -435,6 +464,7 @@ export default function BookingDetailsPage({ service }) {
       roomId: selectedRoomId,
       seat: selectedSeats,
       extras: selectedExtraIds,
+      fareId: fareSnapshot?.id || fareId || undefined,
     });
     router.push(href);
   }
@@ -442,7 +472,7 @@ export default function BookingDetailsPage({ service }) {
   const policies =
     service === "flight"
       ? [
-          item.fareConditions,
+          pricedItem.fareConditions,
           "Changes and cancellations follow the selected fare rules.",
           "Travel documents must match traveller names exactly.",
         ]
@@ -473,7 +503,12 @@ export default function BookingDetailsPage({ service }) {
           <div className="booking-layout">
             <div className="booking-main">
               {service === "flight" ? (
-                <FlightMainDetails item={item} searchQuery={searchQuery} />
+                <FlightMainDetails
+                  item={pricedItem}
+                  searchQuery={searchQuery}
+                  selectedFareId={fareId || activeFare?.id || ""}
+                  onSelectFare={selectFare}
+                />
               ) : null}
               {service === "hotel" ? (
                 <HotelMainDetails
@@ -586,6 +621,7 @@ export default function BookingDetailsPage({ service }) {
               totals={totals}
               extras={extrasForSummary}
               nights={service === "hotel" ? nights : 1}
+              fareLabel={service === "flight" ? activeFare?.label || "" : ""}
               onContinue={handleContinue}
             />
           </div>

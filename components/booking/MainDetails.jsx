@@ -5,12 +5,20 @@ import { formatDuration, formatPriceParts, formatShortDate } from "@/lib/results
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode, convertAmount } from "@/data/markets";
 import { BUS_SEAT_MAP, BUS_TAKEN_SEATS, MAX_BUS_SEATS, formatSelectedSeats } from "@/lib/booking";
 
-export function FlightMainDetails({ item, searchQuery }) {
+export function FlightMainDetails({ item, searchQuery, selectedFareId, onSelectFare }) {
   const marketId = getActiveMarketId();
-  const price = formatPriceParts(item, marketId);
+  const fares = Array.isArray(item.fares) ? item.fares : [];
+  const selectedFare =
+    fares.find((fare) => fare.aplFareId === selectedFareId || fare.id === selectedFareId) ||
+    fares[0] ||
+    null;
+  const pricedItem = selectedFare
+    ? { ...item, prices: selectedFare.prices, baggage: selectedFare.baggage, fareConditions: selectedFare.fareConditions, cabin: selectedFare.cabin }
+    : item;
+  const price = formatPriceParts(pricedItem, marketId);
 
   return (
-    <section className="booking-section" id="details">
+    <section className="booking-section flight-detail-rich" id="details">
       <div className="booking-header-row">
         <div>
           <p className="result-card-kicker">{item.airline}</p>
@@ -18,11 +26,12 @@ export function FlightMainDetails({ item, searchQuery }) {
             {item.from.city} ({item.from.code}) → {item.to.city} ({item.to.code})
           </h1>
           <p className="booking-meta">
-            {formatShortDate(searchQuery.depart, marketId)}
+            Depart {formatShortDate(searchQuery.depart, marketId)}
+            {item.from.time ? ` · ${item.from.time}` : ""}
             {searchQuery.return
               ? ` · Return ${formatShortDate(searchQuery.return, marketId)}`
               : ""}{" "}
-            · {item.cabin}
+            · {pricedItem.cabin} · {formatDuration(item.durationMinutes)}
           </p>
         </div>
         <div className="airline-badge airline-badge-lg" aria-hidden="true">
@@ -30,13 +39,16 @@ export function FlightMainDetails({ item, searchQuery }) {
         </div>
       </div>
 
-      <div className="itinerary-card">
+      <div className="itinerary-card itinerary-card-rich">
         <p className="flight-leg-label">{item.returnLeg ? "Depart" : "Flight"}</p>
         <div className="flight-timeline">
           <div>
             <p className="flight-time">{item.from.time}</p>
             <p className="flight-code">
               {item.from.code} · {item.from.city}
+            </p>
+            <p className="flight-date-chip">
+              {formatShortDate(searchQuery.depart || item.from.date, marketId)}
             </p>
           </div>
           <div className="flight-duration-wrap">
@@ -50,6 +62,9 @@ export function FlightMainDetails({ item, searchQuery }) {
             <p className="flight-time">{item.to.time}</p>
             <p className="flight-code">
               {item.to.code} · {item.to.city}
+            </p>
+            <p className="flight-date-chip">
+              {formatShortDate(item.to.date || searchQuery.depart, marketId)}
             </p>
           </div>
         </div>
@@ -83,24 +98,75 @@ export function FlightMainDetails({ item, searchQuery }) {
         ) : null}
       </div>
 
+      {fares.length ? (
+        <div className="flight-fare-row flight-fare-row-detail">
+          {fares.map((fare) => {
+            const active = selectedFare && fare.id === selectedFare.id;
+            const farePrice = formatPriceParts(
+              { prices: fare.prices, paxCount: item.paxCount },
+              marketId,
+            );
+            const tone = String(fare.label || "saver").toLowerCase().includes("corp")
+              ? "corporate"
+              : String(fare.label || "").toLowerCase().includes("flex")
+                ? "flexi"
+                : String(fare.label || "").toLowerCase().includes("publish")
+                  ? "publish"
+                  : "saver";
+            return (
+              <button
+                key={fare.id}
+                type="button"
+                className={`flight-fare-card is-${tone} ${active ? "is-selected" : ""}`}
+                aria-pressed={active}
+                onClick={() => onSelectFare?.(fare.id)}
+              >
+                <span className={`flight-fare-badge is-${tone}`}>{fare.label}</span>
+                <span className="flight-fare-price">{farePrice.totalLabel}</span>
+                <ul className="flight-fare-inclusions">
+                  <li className="flight-fare-inclusion is-yes">
+                    <span aria-hidden="true">✓</span>
+                    <span>Cabin {fare.cabinKg ?? 7} kg</span>
+                  </li>
+                  <li className="flight-fare-inclusion is-yes">
+                    <span aria-hidden="true">✓</span>
+                    <span>Check-in {fare.checkinKg ?? 15} kg</span>
+                  </li>
+                  <li className={`flight-fare-inclusion ${fare.meals ? "is-yes" : "is-no"}`}>
+                    <span aria-hidden="true">{fare.meals ? "✓" : "✕"}</span>
+                    <span>{fare.meals ? "Meal included" : "No meal"}</span>
+                  </li>
+                  <li className={`flight-fare-inclusion ${fare.refundable ? "is-yes" : "is-no"}`}>
+                    <span aria-hidden="true">{fare.refundable ? "✓" : "✕"}</span>
+                    <span>{fare.cancelFee || (fare.refundable ? "Refundable" : "Non-refundable")}</span>
+                  </li>
+                </ul>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <dl className="detail-facts">
         <div>
+          <dt>Travel duration</dt>
+          <dd>{formatDuration(item.durationMinutes)}</dd>
+        </div>
+        <div>
           <dt>Baggage</dt>
-          <dd>{item.baggage}</dd>
+          <dd>{pricedItem.baggage}</dd>
         </div>
         <div>
           <dt>Selected fare</dt>
-          <dd>{price.baseLabel}</dd>
-        </div>
-        <div>
-          <dt>Taxes</dt>
-          <dd>{price.taxesLabel}</dd>
+          <dd>
+            {selectedFare?.label || "Standard"} · {price.totalLabel}
+          </dd>
         </div>
       </dl>
 
       <div className="fare-policy-panel">
         <h2 className="booking-subsection-title">Fare & cancellation</h2>
-        <p className="result-card-policy">{item.fareConditions}</p>
+        <p className="result-card-policy">{pricedItem.fareConditions}</p>
         <p className="price-fee-note">
           Booking fees may apply at checkout and will be itemised before payment.
         </p>

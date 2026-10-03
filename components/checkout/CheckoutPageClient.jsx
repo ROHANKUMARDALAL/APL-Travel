@@ -12,11 +12,19 @@ import PaymentMethods from "@/components/checkout/PaymentMethods";
 import { CheckoutPricePanel, FinalReview } from "@/components/checkout/FinalReview";
 import {
   buildResultsReturnHref,
+  calcBookingTotals,
   findResultById,
   loadBookingDraft,
   nightsFromSearch,
   saveBookingDraft,
+  BOOKING_EXTRAS,
+  getHotelRooms,
 } from "@/lib/booking";
+import {
+  withSelectedFare,
+  selectedFareSnapshot,
+  payingPassengerCount,
+} from "@/lib/fareSelection";
 import {
   calcCheckoutPayable,
   getWalletBalance,
@@ -40,6 +48,7 @@ function buildDetailsHref(service, searchParams, draft) {
     service === "flight" ? "flights" : service === "hotel" ? "hotels" : "buses";
   const params = new URLSearchParams(searchParams.toString());
   if (draft?.id) params.set("id", draft.id);
+  if (draft?.selectedFareId) params.set("fareId", draft.selectedFareId);
   return `/${path}/details?${params.toString()}`;
 }
 
@@ -53,7 +62,7 @@ export default function CheckoutPageClient() {
   const [promo, setPromo] = useState(null);
   const [usedCodes, setUsedCodes] = useState([]);
   const [walletApplied, setWalletApplied] = useState(0);
-  const [method, setMethod] = useState("card");
+  const [method, setMethod] = useState("upi");
   const [card, setCard] = useState({
     number: "",
     expiry: "",
@@ -77,15 +86,76 @@ export default function CheckoutPageClient() {
   useEffect(() => {
     const loaded = loadBookingDraft();
     const user = getCurrentUser();
-    if (loaded && user) {
-      loaded.contact = {
-        email: loaded.contact?.email || user.email || "",
-        phone: loaded.contact?.phone || user.phone || "",
-      };
-      loaded.bookedForUserId = user.id;
-      saveBookingDraft(loaded);
+    let next = loaded;
+    if (next) {
+      const fareId =
+        next.selectedFareId ||
+        searchParams.get("fareId") ||
+        next.selectedFare?.id ||
+        "";
+      if (next.service === "flight" && next.id) {
+        const catalogItem = findResultById("flight", next.id);
+        if (catalogItem) {
+          const priced = withSelectedFare(catalogItem, fareId);
+          const fareSnap =
+            next.selectedFare || selectedFareSnapshot(catalogItem, fareId);
+          const nights = nightsFromSearch(next.searchQuery);
+          const room =
+            next.service === "hotel"
+              ? getHotelRooms(next.id).find((entry) => entry.id === next.selectedRoomId)
+              : null;
+          const extrasCatalog = BOOKING_EXTRAS.flight || [];
+          const selectedExtras = extrasCatalog.filter((extra) =>
+            (next.extras || []).includes(extra.id),
+          );
+          const totals = calcBookingTotals({
+            service: "flight",
+            item: priced || catalogItem,
+            room,
+            selectedExtras,
+            nights,
+            marketId,
+            seatCount: 1,
+            discount: 0,
+          });
+          next = {
+            ...next,
+            selectedFareId: fareSnap?.id || fareId || next.selectedFareId || null,
+            selectedFare: fareSnap,
+            totals,
+            apiBooking: next.apiBooking
+              ? {
+                  ...next.apiBooking,
+                  aplFareId:
+                    priced?.aplFareId ||
+                    fareSnap?.aplFareId ||
+                    next.apiBooking.aplFareId ||
+                    null,
+                  quote: priced?.quote || fareSnap?.quote || next.apiBooking.quote,
+                  selectedFareQuote:
+                    fareSnap?.quote ||
+                    priced?.quote ||
+                    next.apiBooking.selectedFareQuote ||
+                    next.apiBooking.quote,
+                  fareLabel: fareSnap?.label || next.apiBooking.fareLabel || null,
+                }
+              : next.apiBooking,
+          };
+        }
+      }
+      if (user) {
+        next = {
+          ...next,
+          contact: {
+            email: next.contact?.email || user.email || "",
+            phone: next.contact?.phone || user.phone || "",
+          },
+          bookedForUserId: user.id,
+        };
+      }
+      saveBookingDraft(next);
     }
-    setDraft(loaded);
+    setDraft(next);
     setReady(true);
     if (user) {
       fetchSavedTravellers()
@@ -151,7 +221,16 @@ export default function CheckoutPageClient() {
 
   const service = draft?.service || searchParams.get("service") || "";
   const id = draft?.id || searchParams.get("id") || "";
-  const item = service && id ? findResultById(service, id) : null;
+  const catalogItem = service && id ? findResultById(service, id) : null;
+  const fareId =
+    draft?.selectedFareId ||
+    searchParams.get("fareId") ||
+    draft?.selectedFare?.id ||
+    "";
+  const item =
+    service === "flight" && catalogItem
+      ? withSelectedFare(catalogItem, fareId) || catalogItem
+      : catalogItem;
   const nights = nightsFromSearch(draft?.searchQuery);
   const walletBalance = getWalletBalance(marketId);
 
@@ -228,7 +307,7 @@ export default function CheckoutPageClient() {
 
   const detailsHref = buildDetailsHref(service, searchParams, draft);
   const resultsHref = buildResultsReturnHref(service, draft.searchQuery);
-  const payLabel = `Pay ${payable.totalPayableLabel} securely`;
+  const payLabel = `Pay Now · ${payable.totalPayableLabel}`;
 
   function validateCheckout() {
     const next = {};
@@ -332,7 +411,9 @@ export default function CheckoutPageClient() {
                 method: "CARD",
                 cardNumber: forceFail ? `${cardNumber.slice(0, -4)}0000` : cardNumber,
               }
-            : { method: "NETBANKING" };
+            : method === "upi"
+              ? { method: "UPI" }
+              : { method: "NETBANKING" };
         const accountBooking =
           draft.apiBooking?.kind
             ? draft.apiBooking
@@ -360,25 +441,53 @@ export default function CheckoutPageClient() {
           return;
         }
         const isFlight = accountBooking?.kind === "flight" || Boolean(accountBooking?.aplFlightId);
+        const flightTravellers = (draft.travellers || []).map((person) => ({
+          type: String(person.type || "adult").toUpperCase(),
+          title: person.title || "Mr",
+          firstName: person.firstName?.trim(),
+          lastName: person.lastName?.trim(),
+          dateOfBirth: person.dob || person.dateOfBirth,
+          gender: person.gender,
+          nationality: person.nationality || "IN",
+          passportNumber: person.passport,
+          passportExpiry: person.passportExpiry,
+        }));
+        const selectedQuote =
+          draft.selectedFare?.quote ||
+          accountBooking?.quote ||
+          item?.quote ||
+          null;
         const booked = isFlight
           ? await bookFlightStay({
                 ...accountBooking,
-                passengerCount: Math.max(
-                  1,
-                  Number(item?.paxCount) || (draft.travellers || []).length || 1,
-                ),
+                aplFareId:
+                  accountBooking?.aplFareId ||
+                  draft.selectedFare?.aplFareId ||
+                  item?.aplFareId ||
+                  null,
+                quote: selectedQuote,
+                selectedFareQuote: {
+                  amount: Number(selectedQuote?.amount),
+                  currency: selectedQuote?.currency || "INR",
+                  label:
+                    draft.selectedFare?.label ||
+                    accountBooking?.fareLabel ||
+                    item?.selectedFareLabel ||
+                    undefined,
+                },
+                fareLabel:
+                  draft.selectedFare?.label ||
+                  accountBooking?.fareLabel ||
+                  item?.selectedFareLabel ||
+                  undefined,
+                passengerCount: payingPassengerCount({
+                  travellers: flightTravellers,
+                  searchQuery: draft.searchQuery,
+                  paxCount: item?.paxCount,
+                }),
+                extras: draft.extras || [],
                 contact: draft.contact,
-                travellers: (draft.travellers || []).map((person) => ({
-                  type: String(person.type || "adult").toUpperCase(),
-                  title: person.title || "Mr",
-                  firstName: person.firstName?.trim(),
-                  lastName: person.lastName?.trim(),
-                  dateOfBirth: person.dob || person.dateOfBirth,
-                  gender: person.gender,
-                  nationality: person.nationality || "IN",
-                  passportNumber: person.passport,
-                  passportExpiry: person.passportExpiry,
-                })),
+                travellers: flightTravellers,
                 payment,
               })
           : await bookHotelStay({
@@ -407,6 +516,8 @@ export default function CheckoutPageClient() {
           extras: draft.extras || [],
           selectedRoomId: draft.selectedRoomId || null,
           selectedSeat: draft.selectedSeat || null,
+          selectedFareId: draft.selectedFareId || fareId || null,
+          selectedFare: draft.selectedFare || selectedFareSnapshot(catalogItem, fareId),
           payable,
           payment: {
             status: "paid",
@@ -448,6 +559,8 @@ export default function CheckoutPageClient() {
         extras: draft.extras || [],
         selectedRoomId: draft.selectedRoomId || null,
         selectedSeat: draft.selectedSeat || null,
+        selectedFareId: draft.selectedFareId || fareId || null,
+        selectedFare: draft.selectedFare || selectedFareSnapshot(catalogItem, fareId),
         payable,
         payment: {
           status: "paid",
@@ -494,6 +607,12 @@ export default function CheckoutPageClient() {
                 onPay={handlePay}
                 disabled={processing}
                 processing={processing}
+                fareLabel={
+                  service === "flight"
+                    ? draft.selectedFare?.label || item.selectedFareLabel || ""
+                    : ""
+                }
+                onQuickMethod={setMethod}
               />
               <BookingSummaryCard
                 service={service}
@@ -574,6 +693,12 @@ export default function CheckoutPageClient() {
               onPay={handlePay}
               disabled={processing}
               processing={processing}
+              fareLabel={
+                service === "flight"
+                  ? draft.selectedFare?.label || item.selectedFareLabel || ""
+                  : ""
+              }
+              onQuickMethod={setMethod}
             />
           </div>
         </div>

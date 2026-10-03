@@ -3,10 +3,10 @@
 import { formatCardNumber, formatExpiry } from "@/lib/mockPayment";
 
 const METHODS = [
-  { id: "card", label: "Card" },
-  { id: "paypal", label: "PayPal" },
-  { id: "apple", label: "Apple Pay" },
-  { id: "google", label: "Google Pay" },
+  { id: "upi", label: "UPI", hint: "Pay via any UPI app" },
+  { id: "card", label: "Cards", hint: "Debit / credit cards" },
+  { id: "netbanking", label: "Net Banking", hint: "All major banks" },
+  { id: "paypal", label: "PayPal", hint: "Wallet checkout" },
 ];
 
 export default function PaymentMethods({
@@ -19,27 +19,25 @@ export default function PaymentMethods({
   onForceFailChange,
 }) {
   return (
-    <section className="checkout-section" id="payment">
-      <h2 className="checkout-section-title">Payment</h2>
+    <section className="checkout-section pay-methods-section" id="payment">
+      <h2 className="checkout-section-title">Payment method</h2>
       <p className="booking-section-copy">
-        Choose a payment method. Card details are never stored.
+        Choose how you want to pay. Card details are never stored on APL Travel.
       </p>
-      <p className="dev-note">Payment is simulated for this experience.</p>
 
-      <div className="payment-methods" role="radiogroup" aria-label="Payment method">
+      <div className="pay-method-grid" role="radiogroup" aria-label="Payment method">
         {METHODS.map((item) => (
-          <label
+          <button
             key={item.id}
-            className={`payment-method ${method === item.id ? "is-selected" : ""}`}
+            type="button"
+            role="radio"
+            aria-checked={method === item.id}
+            className={`pay-method-card ${method === item.id ? "is-selected" : ""}`}
+            onClick={() => onMethodChange(item.id)}
           >
-            <input
-              type="radio"
-              name="pay-method"
-              checked={method === item.id}
-              onChange={() => onMethodChange(item.id)}
-            />
-            <span>{item.label}</span>
-          </label>
+            <span className="pay-method-label">{item.label}</span>
+            <span className="pay-method-hint">{item.hint}</span>
+          </button>
         ))}
       </div>
 
@@ -115,9 +113,9 @@ export default function PaymentMethods({
           </div>
         </div>
       ) : (
-        <p className="wallet-alt-note">
-          {METHODS.find((m) => m.id === method)?.label} will open a mock approval
-          flow — no external provider is contacted.
+        <p className="pay-method-alt-note">
+          {METHODS.find((m) => m.id === method)?.label} opens a secure mock approval
+          flow — no external provider is contacted in this demo.
         </p>
       )}
 

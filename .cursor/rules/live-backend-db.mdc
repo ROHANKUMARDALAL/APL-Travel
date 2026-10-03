@@ -1,0 +1,12 @@
+---
+description: Always use live Render API and its MongoDB for local frontend
+alwaysApply: true
+---
+
+# Live backend + MongoDB
+
+- `BACKEND_ORIGIN` in `.env.local` must stay `https://apltravelbackend.onrender.com`.
+- Never switch the Next.js app to `localhost` backend unless that local backend’s `MONGODB_URI` is the **same Atlas URI** as Render.
+- Login, travellers, bookings, and searches must always read/write the **live** MongoDB (via Render). Do not create a separate local-only user DB for day-to-day work.
+- After backend code changes that affect booking/fares, push to `APLTravelBackEnd` `main` and ensure Render is redeployed (Manual Deploy if auto-deploy is off) before telling the user to test on live.
+- Flight `confirmPrice` must always be `(selectedFareQuote.unit × paying pax) + selected add-ons` with the same codes/amounts the backend catalogue uses.

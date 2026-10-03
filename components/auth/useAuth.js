@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import {
   AUTH_EVENT,
+  ensureValidSession,
   getCurrentUser,
   getSession,
   isAuthenticated,
 } from "@/lib/auth";
 
 /**
- * Subscribe to mock auth session changes (login/logout/refresh).
+ * Subscribe to auth session changes and validate the login token once on boot
+ * so stale localStorage sessions cannot keep account pages half-logged-in.
  */
 export function useAuth() {
   const [ready, setReady] = useState(false);
@@ -17,18 +19,34 @@ export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    function sync() {
+    let ignore = false;
+
+    function syncFromStorage() {
+      if (ignore) return;
       setUser(getCurrentUser());
       setAuthenticated(isAuthenticated());
+    }
+
+    async function boot() {
+      syncFromStorage();
+      if (!isAuthenticated()) {
+        if (!ignore) setReady(true);
+        return;
+      }
+
+      await ensureValidSession();
+      if (ignore) return;
+      syncFromStorage();
       setReady(true);
     }
 
-    sync();
-    window.addEventListener(AUTH_EVENT, sync);
-    window.addEventListener("storage", sync);
+    boot();
+    window.addEventListener(AUTH_EVENT, syncFromStorage);
+    window.addEventListener("storage", syncFromStorage);
     return () => {
-      window.removeEventListener(AUTH_EVENT, sync);
-      window.removeEventListener("storage", sync);
+      ignore = true;
+      window.removeEventListener(AUTH_EVENT, syncFromStorage);
+      window.removeEventListener("storage", syncFromStorage);
     };
   }, []);
 

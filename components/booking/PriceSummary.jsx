@@ -6,6 +6,7 @@ export default function PriceSummary({
   totals,
   extras = [],
   nights = 1,
+  fareLabel = "",
   onContinue,
   continueLabel = "Continue to checkout",
   continueDisabled = false,
@@ -17,6 +18,9 @@ export default function PriceSummary({
     <>
       <aside className="price-summary">
         <h2 className="price-summary-title">Price summary</h2>
+        {fareLabel ? (
+          <p className="price-summary-note">Selected fare · {fareLabel}</p>
+        ) : null}
         <dl className="price-summary-rows">
           <div>
             <dt>Base price{nights > 1 ? ` · ${nights} nights` : ""}</dt>

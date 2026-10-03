@@ -39,6 +39,12 @@ import {
 } from "@/lib/resultsHelpers";
 import { searchFlights, searchHotels } from "@/lib/api/search";
 import {
+  cacheSearchResults,
+  readSearchResults,
+  searchCacheKey,
+} from "@/lib/api/searchResultsCache";
+import { rememberCatalog } from "@/lib/api/catalogCache";
+import {
   buildResultsHref,
   parseBusSearchParams,
   parseFlightSearchParams,
@@ -209,10 +215,19 @@ export default function ResultsPage({ service }) {
 
   useEffect(() => {
     let cancelled = false;
-    setStatus("loading");
     setLoadError("");
     setFilters(defaultFilters(service));
     setSort("recommended");
+
+    const cacheKey = searchCacheKey(service, searchParams);
+    const cached = readSearchResults(service, cacheKey);
+    if (cached?.length) {
+      setRawItems(cached);
+      setStatus("ready");
+      rememberCatalog(service, cached);
+    } else {
+      setStatus("loading");
+    }
 
     async function load() {
       try {
@@ -252,11 +267,20 @@ export default function ResultsPage({ service }) {
           items = MOCK_BUSES;
         }
         if (!cancelled) {
-          setRawItems(items);
+          if (items.length || !cached?.length) {
+            setRawItems(items);
+            cacheSearchResults(service, cacheKey, items);
+            rememberCatalog(service, items);
+          }
           setStatus("ready");
         }
       } catch (error) {
         if (!cancelled) {
+          if (cached?.length) {
+            // Keep previous results if a background refresh fails.
+            setStatus("ready");
+            return;
+          }
           setRawItems([]);
           setLoadError(error.message || "Search failed");
           setStatus("error");

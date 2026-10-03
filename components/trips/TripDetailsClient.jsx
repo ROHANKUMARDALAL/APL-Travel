@@ -179,6 +179,12 @@ export default function TripDetailsClient({ reference }) {
             <strong>{paymentVia(booking.payment)}</strong>
           </div>
           <dl className="trip-fare">
+            {trip.fareLabel || booking.fareLabel ? (
+              <div>
+                <dt>Selected fare</dt>
+                <dd>{trip.fareLabel || booking.fareLabel}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Base fare</dt>
               <dd>{money(price.base)}</dd>

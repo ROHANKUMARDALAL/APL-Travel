@@ -1,8 +1,25 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import { formatShortDate } from "@/lib/resultsHelpers";
 import { getActiveMarketId } from "@/data/markets";
+import PolicyModal from "@/components/ui/PolicyModal";
+
+function PolicyLink({ policyId, children, onOpen }) {
+  return (
+    <button
+      type="button"
+      className="legal-policy-link"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpen(policyId);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function FinalReview({
   service,
@@ -14,6 +31,7 @@ export function FinalReview({
   errors,
 }) {
   const marketId = getActiveMarketId();
+  const [policyId, setPolicyId] = useState(null);
   const query = draft.searchQuery || {};
   let bookingLine = "";
   let dateLine = "";
@@ -93,7 +111,9 @@ export function FinalReview({
           />
           <span>
             I agree to the{" "}
-            <Link href="/support">Terms &amp; Conditions</Link>
+            <PolicyLink policyId="terms" onOpen={setPolicyId}>
+              Terms &amp; Conditions
+            </PolicyLink>
           </span>
         </label>
         <label className="legal-check">
@@ -106,7 +126,9 @@ export function FinalReview({
           />
           <span>
             I understand the{" "}
-            <Link href="/support">cancellation &amp; refund policy</Link>
+            <PolicyLink policyId="cancellation" onOpen={setPolicyId}>
+              cancellation &amp; refund policy
+            </PolicyLink>
           </span>
         </label>
         <label className="legal-check">
@@ -118,11 +140,27 @@ export function FinalReview({
             }
           />
           <span>
-            I agree to the <Link href="/support">Privacy policy</Link>
+            I agree to the{" "}
+            <PolicyLink policyId="privacy" onOpen={setPolicyId}>
+              Privacy policy
+            </PolicyLink>
           </span>
         </label>
+        <p className="legal-delivery-note">
+          Ticket and voucher delivery follows our{" "}
+          <PolicyLink policyId="delivery" onOpen={setPolicyId}>
+            Delivery Policy
+          </PolicyLink>
+          .
+        </p>
         {errors.legal ? <p className="field-error">{errors.legal}</p> : null}
       </div>
+
+      <PolicyModal
+        open={Boolean(policyId)}
+        policyId={policyId}
+        onClose={() => setPolicyId(null)}
+      />
     </section>
   );
 }
@@ -135,19 +173,21 @@ export function CheckoutPricePanel({
   disabled,
   processing,
   variant = "all",
+  fareLabel = "",
+  onQuickMethod,
 }) {
   const rows = (
-    <dl className="price-summary-rows">
+    <dl className="price-summary-rows pay-price-rows">
       <div>
-        <dt>Base price{nights > 1 ? ` · ${nights} nights` : ""}</dt>
+        <dt>Base fare{nights > 1 ? ` · ${nights} nights` : ""}</dt>
         <dd>{payable.baseLabel}</dd>
       </div>
       <div>
-        <dt>Taxes</dt>
+        <dt>Taxes &amp; fees</dt>
         <dd>{payable.taxesLabel}</dd>
       </div>
       <div>
-        <dt>Service fees</dt>
+        <dt>Convenience fee</dt>
         <dd>{payable.serviceFeeLabel}</dd>
       </div>
       {payable.extras > 0 ? (
@@ -169,7 +209,7 @@ export function CheckoutPricePanel({
         </div>
       ) : null}
       <div className="is-total">
-        <dt>Total payable</dt>
+        <dt>Grand total</dt>
         <dd>{payable.totalPayableLabel}</dd>
       </div>
     </dl>
@@ -192,7 +232,7 @@ export function CheckoutPricePanel({
           <div className="price-summary-mobile-bar">
             <div>
               <p className="price-summary-mobile-total">{payable.totalPayableLabel}</p>
-              <p className="price-summary-mobile-meta">Total payable</p>
+              <p className="price-summary-mobile-meta">Grand total</p>
             </div>
             <button
               type="button"
@@ -200,29 +240,61 @@ export function CheckoutPricePanel({
               disabled={disabled || processing}
               onClick={onPay}
             >
-              {processing ? "…" : "Pay"}
+              {processing ? "…" : "Pay now"}
             </button>
           </div>
         </>
       ) : null}
 
       {showDesktop ? (
-        <aside className="price-summary checkout-price-panel">
-          <h2 className="price-summary-title">Price breakdown</h2>
+        <aside className="price-summary checkout-price-panel pay-sidebar">
+          <h2 className="price-summary-title">Payment summary</h2>
+          {fareLabel ? (
+            <p className="pay-sidebar-fare">Selected fare · {fareLabel}</p>
+          ) : null}
           {rows}
-          <p className="price-summary-note">
-            Base price, taxes, service fees, extras, discounts, and wallet credit
-            are itemised above.
-          </p>
-          <p className="dev-note">Payment is simulated — no real charge.</p>
+          <div className="pay-quick-methods">
+            <p className="pay-quick-label">Instant methods</p>
+            <div className="pay-quick-row">
+              {[
+                { id: "upi", label: "UPI" },
+                { id: "card", label: "Cards" },
+                { id: "netbanking", label: "Net Banking" },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="pay-quick-chip"
+                  onClick={() => {
+                    onQuickMethod?.(item.id);
+                    document.getElementById("payment")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             type="button"
-            className="btn-primary price-summary-cta"
+            className="btn-primary price-summary-cta pay-now-cta"
             disabled={disabled || processing}
             onClick={onPay}
           >
-            {processing ? "Processing…" : payLabel}
+            {processing ? "Processing…" : payLabel || "Pay now"}
           </button>
+          <div className="pay-secure-row" aria-label="Secure payment">
+            <span className="pay-secure-badge">SSL secured</span>
+            <span className="pay-secure-badge">PCI aware</span>
+            <span className="pay-secure-badge">256-bit</span>
+          </div>
+          <p className="price-summary-note">
+            Base fare, taxes, convenience fee, and credits are itemised above.
+          </p>
+          <p className="dev-note">Payment is simulated — no real charge.</p>
         </aside>
       ) : null}
     </>
