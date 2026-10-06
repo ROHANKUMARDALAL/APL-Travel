@@ -11,11 +11,13 @@ import {
   BusPassengerForm,
   FlightTravellerForm,
   HotelGuestForm,
+  TransferPassengerForm,
 } from "@/components/booking/TravellerForms";
 import {
   BusMainDetails,
   FlightMainDetails,
   HotelMainDetails,
+  TransferMainDetails,
   PoliciesBlock,
 } from "@/components/booking/MainDetails";
 import { getActiveMarketId } from "@/data/markets";
@@ -36,6 +38,7 @@ import {
   parseBusSearchParams,
   parseFlightSearchParams,
   parseHotelSearchParams,
+  parseTransferSearchParams,
 } from "@/lib/searchQuery";
 import { AUTH_EVENT, getCurrentUser } from "@/lib/auth";
 import {
@@ -134,6 +137,18 @@ function queryFromParams(service, searchParams) {
       rooms: String(parsed.rooms),
     };
   }
+  if (service === "transfer") {
+    const parsed = parseTransferSearchParams(searchParams);
+    return {
+      pickup: parsed.pickup,
+      dropoff: parsed.dropoff,
+      pickupKind: parsed.pickupKind,
+      dropoffKind: parsed.dropoffKind,
+      date: searchParams.get("date") || "",
+      time: parsed.pickupTime,
+      passengers: String(parsed.passengers),
+    };
+  }
   const parsed = parseBusSearchParams(searchParams);
   return {
     from: parsed.from,
@@ -190,6 +205,20 @@ export default function BookingDetailsPage({ service }) {
     }));
   });
   const [busPassengers, setBusPassengers] = useState([]);
+  const [transferPassengers, setTransferPassengers] = useState(() => {
+    const count = Math.max(1, Math.min(8, Number(searchParams.get("passengers") || 1)));
+    return Array.from({ length: count }, (_, index) => ({
+      id: `xfer-${index + 1}`,
+      type: "ADULT",
+      firstName: "",
+      lastName: "",
+      age: "",
+    }));
+  });
+  const [transferNotes, setTransferNotes] = useState({
+    flightNumber: "",
+    pickupInstructions: "",
+  });
   const [seatMessage, setSeatMessage] = useState("");
   const [contact, setContact] = useState({ email: "", phone: "" });
   const [savedTravellers, setSavedTravellers] = useState([]);
@@ -328,6 +357,19 @@ export default function BookingDetailsPage({ service }) {
         lastName: saved.lastName || "",
         age: ageFromDob(saved.dateOfBirth),
       });
+    } else if (picker.kind === "transfer") {
+      setTransferPassengers((prev) =>
+        prev.map((person, index) =>
+          index === picker.index
+            ? {
+                ...person,
+                firstName: saved.firstName || "",
+                lastName: saved.lastName || "",
+                age: ageFromDob(saved.dateOfBirth),
+              }
+            : person,
+        ),
+      );
     } else if (picker.kind === "bus") {
       setBusPassengers((prev) =>
         prev.map((person) =>
@@ -404,6 +446,14 @@ export default function BookingDetailsPage({ service }) {
       });
     }
 
+    if (service === "transfer") {
+      transferPassengers.forEach((person) => {
+        if (!person.firstName.trim()) next[`${person.id}-firstName`] = "Required";
+        if (!person.lastName.trim()) next[`${person.id}-lastName`] = "Required";
+        if (!isValidAge(person.age)) next[`${person.id}-age`] = "Enter age";
+      });
+    }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -434,7 +484,10 @@ export default function BookingDetailsPage({ service }) {
           ? flightTravellers
           : service === "hotel"
             ? { lead: hotelLead, additional: hotelAdditional }
-            : busPassengers,
+            : service === "transfer"
+              ? transferPassengers
+              : busPassengers,
+      transferNotes: service === "transfer" ? transferNotes : null,
       totals,
       apiBooking:
         service === "flight" && bookingItem.searchId && bookingItem.quote
@@ -455,7 +508,28 @@ export default function BookingDetailsPage({ service }) {
                 aplRoomId: selectedRoom.id,
                 quote: selectedRoom.quote,
               }
-            : null,
+            : service === "bus" && item.searchId && item.quote
+              ? {
+                  kind: "bus",
+                  searchId: item.searchId,
+                  aplBusId: item.id,
+                  aplOfferId: item.aplOfferId || null,
+                  quote: item.quote,
+                  boardingPointCode: item.boardingPointCode,
+                  droppingPointCode: item.droppingPointCode,
+                  selectedSeats,
+                }
+              : service === "transfer" && item.searchId && item.quote
+                ? {
+                    kind: "transfer",
+                    searchId: item.searchId,
+                    aplTransferId: item.id,
+                    aplOfferId: item.aplOfferId || null,
+                    quote: item.quote,
+                    flightNumber: transferNotes.flightNumber || null,
+                    pickupInstructions: transferNotes.pickupInstructions || null,
+                  }
+                : null,
       savedAt: new Date().toISOString(),
     };
     saveBookingDraft(draft);
@@ -482,11 +556,17 @@ export default function BookingDetailsPage({ service }) {
             "Resort fees may apply at some properties and are shown in taxes where known.",
             "Photo ID is required at check-in.",
           ]
-        : [
-            item.cancellation,
-            "Arrive at boarding point at least 20 minutes early.",
-            "Seat map is illustrative until live inventory is connected.",
-          ];
+        : service === "transfer"
+          ? [
+              item.cancellation,
+              "Meet your driver at the agreed pickup point with matching passenger names.",
+              "Flight number and pickup notes are optional and help the driver locate you.",
+            ]
+          : [
+              item.cancellation,
+              "Arrive at boarding point at least 20 minutes early.",
+              "Seat map is illustrative until live inventory is connected.",
+            ];
 
   return (
     <SiteChrome activeService={service}>
@@ -528,6 +608,9 @@ export default function BookingDetailsPage({ service }) {
                   onToggleSeat={toggleBusSeat}
                   seatMessage={seatMessage}
                 />
+              ) : null}
+              {service === "transfer" ? (
+                <TransferMainDetails item={item} searchQuery={searchQuery} />
               ) : null}
 
               {errors.seat ? <p className="field-error">{errors.seat}</p> : null}
@@ -598,6 +681,29 @@ export default function BookingDetailsPage({ service }) {
                   onOpenTravellers={
                     accountReady && getCurrentUser()
                       ? (person) => setPicker({ kind: "bus", seat: person.seat })
+                      : null
+                  }
+                />
+              ) : null}
+
+              {service === "transfer" ? (
+                <TransferPassengerForm
+                  passengers={transferPassengers}
+                  onChangePassenger={(id, patch) =>
+                    setTransferPassengers((prev) =>
+                      prev.map((person) =>
+                        person.id === id ? { ...person, ...patch } : person,
+                      ),
+                    )
+                  }
+                  contact={contact}
+                  onChangeContact={setContact}
+                  errors={errors}
+                  transferNotes={transferNotes}
+                  onChangeNotes={setTransferNotes}
+                  onOpenTravellers={
+                    accountReady && getCurrentUser()
+                      ? (person, index) => setPicker({ kind: "transfer", index })
                       : null
                   }
                 />

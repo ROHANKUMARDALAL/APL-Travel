@@ -10,6 +10,7 @@ import SortBar from "@/components/results/SortBar";
 import FlightResultCard from "@/components/results/FlightResultCard";
 import HotelResultCard from "@/components/results/HotelResultCard";
 import BusResultCard from "@/components/results/BusResultCard";
+import TransferResultCard from "@/components/results/TransferResultCard";
 import {
   ResultsEmpty,
   ResultsError,
@@ -18,10 +19,11 @@ import {
 import FlightSearchForm from "@/components/forms/FlightSearchForm";
 import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
-import { MOCK_BUSES } from "@/data/mock/buses";
+import TransferSearchForm from "@/components/forms/TransferSearchForm";
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode } from "@/data/markets";
 import {
   buildBusSummary,
+  buildTransferSummary,
   buildDetailsHref,
   buildFlightSummary,
   buildHomeSearchHref,
@@ -29,15 +31,17 @@ import {
   filterBuses,
   filterFlights,
   filterHotels,
+  filterTransfers,
   formatDuration,
   getPriceParts,
   nightsBetween,
   sortBuses,
   sortFlights,
   sortHotels,
+  sortTransfers,
   TIME_BUCKETS,
 } from "@/lib/resultsHelpers";
-import { searchFlights, searchHotels } from "@/lib/api/search";
+import { searchFlights, searchHotels, searchBuses, searchTransfers } from "@/lib/api/search";
 import {
   cacheSearchResults,
   readSearchResults,
@@ -49,6 +53,7 @@ import {
   parseBusSearchParams,
   parseFlightSearchParams,
   parseHotelSearchParams,
+  parseTransferSearchParams,
 } from "@/lib/searchQuery";
 
 const SORT_OPTIONS = {
@@ -69,6 +74,11 @@ const SORT_OPTIONS = {
     { id: "cheapest", label: "Cheapest" },
     { id: "fastest", label: "Fastest" },
     { id: "departure", label: "Departure time" },
+  ],
+  transfer: [
+    { id: "recommended", label: "Recommended" },
+    { id: "cheapest", label: "Cheapest" },
+    { id: "fastest", label: "Fastest" },
   ],
 };
 
@@ -91,6 +101,12 @@ function defaultFilters(service) {
       propertyTypes: [],
       amenities: [],
       locations: [],
+    };
+  }
+  if (service === "transfer") {
+    return {
+      maxPrice: null,
+      vehicleCategories: [],
     };
   }
   return {
@@ -131,6 +147,19 @@ function queryObjectFromParams(service, searchParams) {
       checkOut: searchParams.get("checkOut") || "",
       guests: String(parsed.guests),
       rooms: String(parsed.rooms),
+    };
+  }
+  if (service === "transfer") {
+    const parsed = parseTransferSearchParams(searchParams);
+    return {
+      service: "transfer",
+      pickup: parsed.pickup,
+      dropoff: parsed.dropoff,
+      pickupKind: parsed.pickupKind,
+      dropoffKind: parsed.dropoffKind,
+      date: searchParams.get("date") || "",
+      time: parsed.pickupTime,
+      passengers: String(parsed.passengers),
     };
   }
   const parsed = parseBusSearchParams(searchParams);
@@ -183,6 +212,18 @@ export default function ResultsPage({ service }) {
         cityCode: parsed.cityCode,
       };
     }
+    if (service === "transfer") {
+      const parsed = parseTransferSearchParams(searchParams);
+      return {
+        pickup: parsed.pickup,
+        dropoff: parsed.dropoff,
+        pickupKind: parsed.pickupKind,
+        dropoffKind: parsed.dropoffKind,
+        travelDate: parsed.travelDate,
+        pickupTime: parsed.pickupTime,
+        passengers: parsed.passengers,
+      };
+    }
     const parsed = parseBusSearchParams(searchParams);
     return {
       from: parsed.from,
@@ -194,6 +235,7 @@ export default function ResultsPage({ service }) {
   const summary = useMemo(() => {
     if (service === "flight") return buildFlightSummary(searchQuery, marketId);
     if (service === "hotel") return buildHotelSummary(searchQuery, marketId);
+    if (service === "transfer") return buildTransferSummary(searchQuery, marketId);
     return buildBusSummary(searchQuery, marketId);
   }, [service, searchQuery, marketId]);
 
@@ -263,8 +305,40 @@ export default function ResultsPage({ service }) {
             rooms: parsed.rooms,
             adults: parsed.guests,
           });
+        } else if (service === "bus") {
+          const parsed = parseBusSearchParams(searchParams);
+          if (!parsed.from || !parsed.to) {
+            throw new Error("Enter origin and destination cities.");
+          }
+          const travelDate = searchParams.get("date") || "";
+          if (!travelDate) {
+            throw new Error("Choose a travel date.");
+          }
+          items = await searchBuses({
+            from: parsed.from,
+            to: parsed.to,
+            travelDate,
+          });
+        } else if (service === "transfer") {
+          const parsed = parseTransferSearchParams(searchParams);
+          if (!parsed.pickup || !parsed.dropoff) {
+            throw new Error("Enter pickup and drop-off locations.");
+          }
+          const travelDate = searchParams.get("date") || "";
+          if (!travelDate) {
+            throw new Error("Choose a pickup date.");
+          }
+          items = await searchTransfers({
+            pickup: parsed.pickup,
+            dropoff: parsed.dropoff,
+            pickupKind: parsed.pickupKind,
+            dropoffKind: parsed.dropoffKind,
+            travelDate,
+            pickupTime: parsed.pickupTime,
+            passengers: parsed.passengers,
+          });
         } else {
-          items = MOCK_BUSES;
+          items = [];
         }
         if (!cancelled) {
           if (items.length || !cached?.length) {
@@ -339,6 +413,17 @@ export default function ResultsPage({ service }) {
       };
     }
 
+    if (service === "transfer") {
+      return {
+        currency: displayCurrency,
+        priceMin,
+        priceMax,
+        vehicleCategories: [...new Set(rawItems.map((item) => item.vehicleCategory).filter(Boolean))],
+        formatPrice: (n) => formatMoney(n, marketId),
+        formatDuration,
+      };
+    }
+
     return {
       currency: displayCurrency,
       priceMin,
@@ -370,6 +455,9 @@ export default function ResultsPage({ service }) {
     } else if (service === "hotel") {
       list = filterHotels(list, filters, marketId);
       list = sortHotels(list, sort, marketId);
+    } else if (service === "transfer") {
+      list = filterTransfers(list, filters, marketId);
+      list = sortTransfers(list, sort, marketId);
     } else {
       list = filterBuses(list, filters, marketId);
       list = sortBuses(list, sort, marketId);
@@ -428,6 +516,13 @@ export default function ResultsPage({ service }) {
                 {service === "bus" ? (
                   <BusSearchForm
                     key={`bus-${searchParams.toString()}`}
+                    initialValues={formInitialValues}
+                    onSearchChange={handleModifyChange}
+                  />
+                ) : null}
+                {service === "transfer" ? (
+                  <TransferSearchForm
+                    key={`transfer-${searchParams.toString()}`}
                     initialValues={formInitialValues}
                     onSearchChange={handleModifyChange}
                   />
@@ -532,6 +627,15 @@ export default function ResultsPage({ service }) {
                           item={item}
                           detailsHref={detailsHref}
                           nights={nights || 1}
+                        />
+                      );
+                    }
+                    if (service === "transfer") {
+                      return (
+                        <TransferResultCard
+                          key={item.id}
+                          item={item}
+                          detailsHref={detailsHref}
                         />
                       );
                     }

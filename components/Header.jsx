@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FOOTER, SERVICES } from "@/data/static";
 import ServiceIcon from "@/components/ServiceIcon";
 import { normalizeService } from "@/lib/searchQuery";
 import { useAuth } from "@/components/auth/useAuth";
 import AuthModal from "@/components/auth/AuthModal";
 import CurrencyMenu from "@/components/header/CurrencyMenu";
+import { useSite } from "@/components/site/SiteProvider";
 
 /**
  * Global site header — shared across homepage, results, details, checkout, account.
@@ -29,6 +29,8 @@ export default function Header({
   const [authOpen, setAuthOpen] = useState(false);
   const forceLight = variant === "portal";
   const pinned = !forceLight && scrolled;
+  const { branding, services } = useSite();
+  const brandName = branding.websiteName || "APL Travel";
 
   useEffect(() => {
     if (forceLight) return undefined;
@@ -75,13 +77,21 @@ export default function Header({
       }`}
     >
       <div className="container-page site-header-inner">
-        <Link href="/" className="brand-mark">
-          {FOOTER.brand}
+        <Link href="/" className="brand-mark inline-flex items-center gap-2">
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={branding.logoUrl}
+              alt={brandName}
+              className="h-8 w-auto max-w-[140px] object-contain"
+            />
+          ) : null}
+          <span>{brandName}</span>
         </Link>
 
         {showServiceTabs ? (
           <nav className="header-services" aria-label="Travel services">
-            {SERVICES.map((service) => {
+            {services.map((service) => {
               const isActive = serviceActive(service.id);
               return (
                 <button

@@ -65,6 +65,15 @@ export default function BookingSummaryCard({
       ["Nights", String(nights)],
       ["Guests / rooms", `${query.guests || 2} guests · ${query.rooms || 1} room`],
     ];
+  } else if (service === "transfer") {
+    title = `${item.pickup?.name || query.pickup || "Pickup"} → ${item.dropoff?.name || query.dropoff || "Drop-off"}`;
+    rows = [
+      ["Date", formatShortDate(query.date, marketId)],
+      ["Time", query.time || item.pickupDateTime?.slice(11, 16) || "—"],
+      ["Vehicle", item.vehicleName || item.vehicleCategory],
+      ["Capacity", `Up to ${item.maxPassengers} · ${item.maxLuggage} bags`],
+      ["Passengers", String(Array.isArray(draft.travellers) ? draft.travellers.length : query.passengers || 1)],
+    ];
   } else {
     title = `${item.from.city} → ${item.to.city}`;
     rows = [
@@ -174,22 +183,35 @@ export function TravellerReview({
             />
           ))}
         </div>
-      ) : service === "bus" ? (
+      ) : service === "bus" || service === "transfer" ? (
         <div className="checkout-guest-list">
           {busPeople.map((person, index) => (
             <GuestAgeCard
               key={person.seat || person.id || index}
-              title={`Seat ${person.seat || index + 1}`}
+              title={
+                service === "transfer"
+                  ? index === 0
+                    ? "Lead passenger"
+                    : `Passenger ${index + 1}`
+                  : `Seat ${person.seat || index + 1}`
+              }
               name={[person.firstName, person.lastName].filter(Boolean).join(" ") || "Name not added"}
-              id={`checkout-bus-age-${person.seat || index}`}
+              id={`checkout-${service}-age-${person.seat || person.id || index}`}
               age={person.age}
-              error={ageErrors[`age-${person.seat || index}`]}
-              onAge={(age) => onChangeAge?.({ kind: "bus", seat: person.seat, index, age })}
+              error={ageErrors[`age-${person.seat || person.id || index}`]}
+              onAge={(age) =>
+                onChangeAge?.({
+                  kind: service === "transfer" ? "transfer" : "bus",
+                  seat: person.seat,
+                  index,
+                  age,
+                })
+              }
               onChoose={
                 onChooseTraveller
                   ? () =>
                       onChooseTraveller({
-                        kind: "bus",
+                        kind: service === "transfer" ? "transfer" : "bus",
                         index,
                         type: person.type || "adult",
                       })

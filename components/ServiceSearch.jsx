@@ -2,17 +2,19 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SERVICES } from "@/data/static";
 import ServiceIcon from "@/components/ServiceIcon";
 import FlightSearchForm from "@/components/forms/FlightSearchForm";
 import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
+import TransferSearchForm from "@/components/forms/TransferSearchForm";
 import { buildResultsHref } from "@/lib/searchQuery";
+import { useSite } from "@/components/site/SiteProvider";
 
 const SERVICE_TITLES = {
   flight: "Search flights",
   hotel: "Search hotels",
   bus: "Search buses",
+  transfer: "Search transfers",
 };
 
 export default function ServiceSearch({
@@ -23,6 +25,7 @@ export default function ServiceSearch({
   const router = useRouter();
   const searchQueryRef = useRef(null);
   const [formError, setFormError] = useState("");
+  const { services } = useSite();
 
   const handleSearchChange = useCallback((query) => {
     searchQueryRef.current = query;
@@ -55,7 +58,7 @@ export default function ServiceSearch({
               role="tablist"
               aria-label="Travel services"
             >
-              {SERVICES.map((service) => {
+              {services.map((service) => {
                 const isActive = service.id === activeService;
                 return (
                   <button
@@ -98,6 +101,13 @@ export default function ServiceSearch({
               )}
               {activeService === "bus" && (
                 <BusSearchForm
+                  key={formKey}
+                  initialValues={initialValues}
+                  onSearchChange={handleSearchChange}
+                />
+              )}
+              {activeService === "transfer" && (
+                <TransferSearchForm
                   key={formKey}
                   initialValues={initialValues}
                   onSearchChange={handleSearchChange}

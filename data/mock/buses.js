@@ -1,5 +1,6 @@
 /**
- * Mock bus results — replace with API responses later.
+ * Legacy static bus catalog — ResultsPage no longer uses this.
+ * Prefer POST /api/v1/buses/search (Phase 14A). Kept only as fallback reference.
  */
 
 export const MOCK_BUSES = [

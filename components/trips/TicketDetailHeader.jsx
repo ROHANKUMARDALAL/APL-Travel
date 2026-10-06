@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 function serviceName(service) {
   if (service === "hotel") return "Hotel";
   if (service === "bus") return "Bus";
+  if (service === "transfer") return "Transfer";
   return service === "flight" ? "Flight" : "";
 }
 

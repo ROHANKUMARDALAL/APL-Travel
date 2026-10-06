@@ -9,11 +9,14 @@ import { findResultById, formatSelectedSeats } from "@/lib/booking";
 import { saveConfirmation } from "@/lib/confirmation";
 import {
   bookingStatusLabel,
+  cancellationStatusLabel,
   getBookingHeadline,
   getTravellerDisplayName,
   loadAccountBooking,
   paymentStatusLabel,
+  refundStatusLabel,
 } from "@/lib/userBookings";
+import { cancelMyBooking } from "@/lib/api/booking";
 import { formatShortDate } from "@/lib/resultsHelpers";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
@@ -30,6 +33,8 @@ export default function TripDetailsClient({ reference }) {
   const { user } = useAuth();
   const [booking, setBooking] = useState(null);
   const [ready, setReady] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState("");
   const marketId = getActiveMarketId();
 
   useEffect(() => {
@@ -138,6 +143,16 @@ export default function TripDetailsClient({ reference }) {
           >
             {paymentStatusLabel(booking)}
           </span>
+          {cancellationStatusLabel(booking) ? (
+            <span className="status-pill is-cancelled">
+              {cancellationStatusLabel(booking)}
+            </span>
+          ) : null}
+          {refundStatusLabel(booking) ? (
+            <span className="status-pill is-refunded">
+              {refundStatusLabel(booking)}
+            </span>
+          ) : null}
           <span className="status-pill trip-ref-pill">{booking.reference}</span>
         </div>
       </div>
@@ -148,6 +163,8 @@ export default function TripDetailsClient({ reference }) {
             <HotelStay trip={trip} marketId={marketId} />
           ) : booking.service === "bus" ? (
             <BusRide trip={trip} marketId={marketId} />
+          ) : booking.service === "transfer" ? (
+            <TransferRide trip={trip} marketId={marketId} />
           ) : (
             <FlightRoute trip={trip} marketId={marketId} />
           )}
@@ -226,6 +243,41 @@ export default function TripDetailsClient({ reference }) {
         >
           Download ticket
         </button>
+        {booking.bookingStatus === "confirmed" || booking.bookingStatus === "CONFIRMED" ? (
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={cancelBusy}
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  "Request cancellation? Development mock: supplier cancel + refund are simulated — not a real airline refund quote.",
+                )
+              ) {
+                return;
+              }
+              setCancelBusy(true);
+              setCancelMessage("");
+              try {
+                await cancelMyBooking(booking.reference, {
+                  reason: "Customer cancellation from My Trips",
+                });
+                const refreshed = await loadAccountBooking(reference);
+                setBooking(refreshed);
+                setCancelMessage(
+                  "Cancellation confirmed via mock supplier. Refund status is shown above.",
+                );
+              } catch (err) {
+                setCancelMessage(err?.message || "Cancellation failed");
+              } finally {
+                setCancelBusy(false);
+              }
+            }}
+          >
+            {cancelBusy ? "Cancelling…" : "Request cancellation"}
+          </button>
+        ) : null}
+        {cancelMessage ? <p className="section-copy">{cancelMessage}</p> : null}
         <Link className="btn-ghost" href="/support#booking-help">
           Need help?
         </Link>
@@ -246,6 +298,7 @@ function prettyDay(value, marketId) {
 function serviceLabel(service) {
   if (service === "hotel") return "Hotel";
   if (service === "bus") return "Bus";
+  if (service === "transfer") return "Transfer";
   return "Flight";
 }
 
@@ -337,6 +390,29 @@ function BusRide({ trip, marketId }) {
         <Place label="From" place={trip.from || "—"} when={prettyDay(trip.date, marketId)} />
         <span className="trip-arrow" aria-hidden="true">→</span>
         <Place label="To" place={trip.to || "—"} when={prettyDay(trip.date, marketId)} />
+      </div>
+    </div>
+  );
+}
+
+function TransferRide({ trip, marketId }) {
+  const pickup = trip.pickup?.name || trip.from || "—";
+  const dropoff = trip.dropoff?.name || trip.to || "—";
+  return (
+    <div className="trip-route is-bus">
+      <div className="trip-route-head">
+        <p className="trip-card-label">Transfer</p>
+        <div className="trip-chip-row">
+          {trip.vehicleName ? <span className="trip-tag">{trip.vehicleName}</span> : null}
+          {trip.vehicleCategory ? (
+            <span className="trip-tag is-soft">{trip.vehicleCategory}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="trip-legs">
+        <Place label="Pickup" place={pickup} when={prettyDay(trip.date || trip.pickupDateTime, marketId)} />
+        <span className="trip-arrow" aria-hidden="true">→</span>
+        <Place label="Drop-off" place={dropoff} when={prettyDay(trip.date || trip.pickupDateTime, marketId)} />
       </div>
     </div>
   );

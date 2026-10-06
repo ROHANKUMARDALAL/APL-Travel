@@ -30,7 +30,7 @@ import {
   getWalletBalance,
 } from "@/lib/checkoutPricing";
 import { simulateMockPayment, validateCardFields } from "@/lib/mockPayment";
-import { bookFlightStay, bookHotelStay } from "@/lib/api/booking";
+import { bookFlightStay, bookHotelStay, bookBusStay, bookTransferStay } from "@/lib/api/booking";
 import { applySavedTraveller, fetchSavedTravellers } from "@/lib/api/travellers";
 import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
 import { isValidAge, ageFromDob } from "@/components/booking/TravellerForms";
@@ -45,7 +45,13 @@ import { getActiveMarketId } from "@/data/markets";
 
 function buildDetailsHref(service, searchParams, draft) {
   const path =
-    service === "flight" ? "flights" : service === "hotel" ? "hotels" : "buses";
+    service === "flight"
+      ? "flights"
+      : service === "hotel"
+        ? "hotels"
+        : service === "transfer"
+          ? "transfers"
+          : "buses";
   const params = new URLSearchParams(searchParams.toString());
   if (draft?.id) params.set("id", draft.id);
   if (draft?.selectedFareId) params.set("fareId", draft.selectedFareId);
@@ -189,7 +195,10 @@ export default function CheckoutPageClient() {
             },
           },
         };
-      } else if (picker.kind === "bus" && Array.isArray(prev.travellers)) {
+      } else if (
+        (picker.kind === "bus" || picker.kind === "transfer") &&
+        Array.isArray(prev.travellers)
+      ) {
         next = {
           ...prev,
           travellers: prev.travellers.map((person, index) =>
@@ -348,7 +357,10 @@ export default function CheckoutPageClient() {
             guest.id === change.id ? { ...guest, age: change.age } : guest,
           ),
         };
-      } else if (change.kind === "bus" && Array.isArray(prev.travellers)) {
+      } else if (
+        (change.kind === "bus" || change.kind === "transfer") &&
+        Array.isArray(prev.travellers)
+      ) {
         travellers = prev.travellers.map((person, index) =>
           (change.seat ? person.seat === change.seat : index === change.index)
             ? { ...person, age: change.age }
@@ -393,7 +405,9 @@ export default function CheckoutPageClient() {
 
     try {
       const signedInAccount = accountUser || getCurrentUser();
-      const signedInTrip = (service === "flight" || service === "hotel") && signedInAccount;
+      const signedInTrip =
+        (service === "flight" || service === "hotel" || service === "bus" || service === "transfer") &&
+        signedInAccount;
       if (draft.apiBooking || signedInTrip) {
         const lead = draft.travellers?.lead || {};
         const extraGuests = (draft.travellers?.additional || [])
@@ -433,14 +447,42 @@ export default function CheckoutPageClient() {
                     aplRoomId: draft.selectedRoomId,
                     quote: item.apiRooms?.find((room) => room.id === draft.selectedRoomId)?.quote,
                   }
-                : null;
-        if ((service === "flight" || service === "hotel") && signedInAccount && !accountBooking?.quote) {
+                : service === "bus" && item?.searchId && item?.quote
+                  ? {
+                      kind: "bus",
+                      searchId: item.searchId,
+                      aplBusId: item.id,
+                      aplOfferId: item.aplOfferId || null,
+                      quote: item.quote,
+                      boardingPointCode: item.boardingPointCode,
+                      droppingPointCode: item.droppingPointCode,
+                      selectedSeats: draft.selectedSeat || [],
+                    }
+                  : service === "transfer" && item?.searchId && item?.quote
+                    ? {
+                        kind: "transfer",
+                        searchId: item.searchId,
+                        aplTransferId: item.id,
+                        aplOfferId: item.aplOfferId || null,
+                        quote: item.quote,
+                        flightNumber: draft.transferNotes?.flightNumber || null,
+                        pickupInstructions: draft.transferNotes?.pickupInstructions || null,
+                      }
+                    : null;
+        if (
+          (service === "flight" || service === "hotel" || service === "bus" || service === "transfer") &&
+          signedInAccount &&
+          !accountBooking?.quote
+        ) {
           setPayError("This signed-in booking must be saved on your account. Search again, then pay.");
           setProcessing(false);
           payingRef.current = false;
           return;
         }
         const isFlight = accountBooking?.kind === "flight" || Boolean(accountBooking?.aplFlightId);
+        const isBus = accountBooking?.kind === "bus" || Boolean(accountBooking?.aplBusId);
+        const isTransfer =
+          accountBooking?.kind === "transfer" || Boolean(accountBooking?.aplTransferId);
         const flightTravellers = (draft.travellers || []).map((person) => ({
           type: String(person.type || "adult").toUpperCase(),
           title: person.title || "Mr",
@@ -489,6 +531,33 @@ export default function CheckoutPageClient() {
                 contact: draft.contact,
                 travellers: flightTravellers,
                 payment,
+              })
+          : isBus
+            ? await bookBusStay({
+                ...accountBooking,
+                selectedSeats: draft.selectedSeat || accountBooking?.selectedSeats || [],
+                boardingPointCode:
+                  accountBooking?.boardingPointCode || item?.boardingPointCode,
+                droppingPointCode:
+                  accountBooking?.droppingPointCode || item?.droppingPointCode,
+                quote: selectedQuote,
+                contact: draft.contact,
+                travellers: Array.isArray(draft.travellers) ? draft.travellers : [],
+                payment,
+              })
+          : isTransfer
+            ? await bookTransferStay({
+                ...accountBooking,
+                quote: selectedQuote,
+                contact: draft.contact,
+                travellers: Array.isArray(draft.travellers) ? draft.travellers : [],
+                payment,
+                flightNumber:
+                  accountBooking?.flightNumber || draft.transferNotes?.flightNumber || null,
+                pickupInstructions:
+                  accountBooking?.pickupInstructions ||
+                  draft.transferNotes?.pickupInstructions ||
+                  null,
               })
           : await bookHotelStay({
                 ...accountBooking,

@@ -371,6 +371,80 @@ export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggle
   );
 }
 
+export function TransferMainDetails({ item, searchQuery }) {
+  const marketId = getActiveMarketId();
+  const pickupName = item.pickup?.name || searchQuery.pickup || "Pickup";
+  const dropoffName = item.dropoff?.name || searchQuery.dropoff || "Drop-off";
+  const timeLabel = searchQuery.time || item.pickupDateTime?.slice(11, 16) || "";
+
+  return (
+    <section className="booking-section" id="details">
+      <p className="result-card-kicker">{item.vehicleCategory}</p>
+      <h1 className="booking-title">
+        {pickupName} → {dropoffName}
+      </h1>
+      <p className="booking-meta">
+        {formatShortDate(searchQuery.date, marketId)}
+        {timeLabel ? ` · ${timeLabel}` : ""}
+        {item.estimatedDurationMinutes
+          ? ` · ~${formatDuration(item.estimatedDurationMinutes)}`
+          : ""}
+      </p>
+
+      <div className="itinerary-card">
+        <div className="flight-timeline">
+          <div>
+            <p className="flight-time">{timeLabel || "—"}</p>
+            <p className="flight-code">{item.pickup?.kind || searchQuery.pickupKind || "PICKUP"}</p>
+            <p className="result-card-meta">{pickupName}</p>
+          </div>
+          <div className="flight-duration-wrap">
+            <p className="flight-duration">
+              {item.estimatedDurationMinutes
+                ? formatDuration(item.estimatedDurationMinutes)
+                : "Transfer"}
+            </p>
+            <div className="flight-line" aria-hidden="true" />
+            <p className="flight-stops">{item.vehicleName}</p>
+          </div>
+          <div>
+            <p className="flight-time">—</p>
+            <p className="flight-code">{item.dropoff?.kind || searchQuery.dropoffKind || "DROPOFF"}</p>
+            <p className="result-card-meta">{dropoffName}</p>
+          </div>
+        </div>
+      </div>
+
+      <dl className="detail-facts">
+        <div>
+          <dt>Vehicle</dt>
+          <dd>{item.vehicleName}</dd>
+        </div>
+        <div>
+          <dt>Passengers</dt>
+          <dd>Up to {item.maxPassengers}</dd>
+        </div>
+        <div>
+          <dt>Luggage</dt>
+          <dd>Up to {item.maxLuggage} bags</dd>
+        </div>
+        <div>
+          <dt>Inclusions</dt>
+          <dd>{(item.inclusions || []).join(" · ") || "Private vehicle"}</dd>
+        </div>
+      </dl>
+
+      <div className="fare-policy-panel">
+        <h2 className="booking-subsection-title">Cancellation policy</h2>
+        <p className="result-card-policy">{item.cancellation}</p>
+        <p className="price-fee-note">
+          Final customer price is confirmed at checkout. Optional flight number and pickup notes can be added for the driver.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function PoliciesBlock({ title = "Policies", items }) {
   return (
     <section className="booking-section">

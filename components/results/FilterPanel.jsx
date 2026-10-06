@@ -256,6 +256,32 @@ export default function FilterPanel({
         </>
       ) : null}
 
+      {service === "transfer" ? (
+        <>
+          <label className="filter-range">
+            <span className="filter-group-title">Max price ({meta.currency})</span>
+            <input
+              type="range"
+              min={meta.priceMin}
+              max={meta.priceMax}
+              value={filters.maxPrice ?? meta.priceMax}
+              onChange={(event) =>
+                onChange({ ...filters, maxPrice: Number(event.target.value) })
+              }
+            />
+            <span className="filter-range-value">
+              Up to {meta.formatPrice(filters.maxPrice ?? meta.priceMax)}
+            </span>
+          </label>
+          <CheckboxGroup
+            title="Vehicle category"
+            options={(meta.vehicleCategories || []).map((t) => ({ id: t, label: t }))}
+            selected={filters.vehicleCategories}
+            onChange={(vehicleCategories) => onChange({ ...filters, vehicleCategories })}
+          />
+        </>
+      ) : null}
+
       {onClose ? (
         <button type="button" className="btn-primary filter-apply-mobile" onClick={onClose}>
           Show results

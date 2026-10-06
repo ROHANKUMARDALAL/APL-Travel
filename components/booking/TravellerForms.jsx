@@ -487,3 +487,118 @@ export function BusPassengerForm({
     </section>
   );
 }
+
+export function TransferPassengerForm({
+  passengers,
+  onChangePassenger,
+  contact,
+  onChangeContact,
+  errors,
+  transferNotes,
+  onChangeNotes,
+  onOpenTravellers,
+}) {
+  const people = passengers?.length ? passengers : [];
+  return (
+    <section className="booking-section" id="traveller">
+      <h2 className="booking-section-title">Passenger information</h2>
+      <p className="booking-section-copy">
+        Add names for everyone travelling in the vehicle. Age is required for each passenger.
+      </p>
+      {people.map((passenger, index) => (
+        <div key={passenger.id || index} className="guest-block">
+          <h3 className="guest-block-title">
+            {index === 0 ? "Lead passenger" : `Passenger ${index + 1}`}
+          </h3>
+          <ChooseTravellerButton
+            onClick={onOpenTravellers ? () => onOpenTravellers(passenger, index) : null}
+          />
+          <div className="booking-form-grid">
+            <div className="search-field">
+              <label className="field-label" htmlFor={`xfer-first-${passenger.id}`}>
+                First name
+              </label>
+              <input
+                id={`xfer-first-${passenger.id}`}
+                className={`field-input ${errors[`${passenger.id}-firstName`] ? "is-invalid" : ""}`}
+                value={passenger.firstName}
+                onChange={(event) =>
+                  onChangePassenger(passenger.id, { firstName: event.target.value })
+                }
+                placeholder="Aisha"
+                autoComplete="given-name"
+              />
+              <FieldError message={errors[`${passenger.id}-firstName`]} />
+            </div>
+            <div className="search-field">
+              <label className="field-label" htmlFor={`xfer-last-${passenger.id}`}>
+                Last name
+              </label>
+              <input
+                id={`xfer-last-${passenger.id}`}
+                className={`field-input ${errors[`${passenger.id}-lastName`] ? "is-invalid" : ""}`}
+                value={passenger.lastName}
+                onChange={(event) =>
+                  onChangePassenger(passenger.id, { lastName: event.target.value })
+                }
+                placeholder="Meridian"
+                autoComplete="family-name"
+              />
+              <FieldError message={errors[`${passenger.id}-lastName`]} />
+            </div>
+            <AgeField
+              id={`xfer-age-${passenger.id}`}
+              value={passenger.age}
+              error={errors[`${passenger.id}-age`]}
+              onChange={(age) => onChangePassenger(passenger.id, { age })}
+            />
+          </div>
+        </div>
+      ))}
+
+      <h3 className="booking-subsection-title">Transfer notes (optional)</h3>
+      <p className="booking-section-copy">
+        Flight number and pickup instructions help the driver. They are optional for mock bookings.
+      </p>
+      <div className="booking-form-grid">
+        <div className="search-field">
+          <label className="field-label" htmlFor="xfer-flight-number">
+            Flight number
+          </label>
+          <input
+            id="xfer-flight-number"
+            className="field-input"
+            value={transferNotes?.flightNumber || ""}
+            onChange={(event) =>
+              onChangeNotes?.({ ...transferNotes, flightNumber: event.target.value })
+            }
+            placeholder="AI101"
+            autoComplete="off"
+          />
+        </div>
+        <div className="search-field">
+          <label className="field-label" htmlFor="xfer-pickup-instructions">
+            Pickup instructions
+          </label>
+          <input
+            id="xfer-pickup-instructions"
+            className="field-input"
+            value={transferNotes?.pickupInstructions || ""}
+            onChange={(event) =>
+              onChangeNotes?.({
+                ...transferNotes,
+                pickupInstructions: event.target.value,
+              })
+            }
+            placeholder="Meet at Arrivals Gate 3"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
+      <h3 className="booking-subsection-title">Contact information</h3>
+      <ContactFields values={contact} errors={errors} onChange={onChangeContact} />
+    </section>
+  );
+}
+

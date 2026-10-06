@@ -5,6 +5,7 @@ export const SERVICES = [
   { id: "flight", label: "Flight", icon: "plane" },
   { id: "hotel", label: "Hotel", icon: "hotel" },
   { id: "bus", label: "Bus", icon: "bus" },
+  { id: "transfer", label: "Transfer", icon: "transfer" },
 ];
 
 /** Raw offer amounts by currency — UI formats via market helpers (display currency ≠ destination). */
