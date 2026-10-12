@@ -39,6 +39,7 @@ export type TicketDocument = {
     address: string;
     email: string;
     phone: string;
+    logoUrl?: string;
   };
   service: string;
   contact: {
@@ -360,7 +361,19 @@ function circleFill(cx: number, cy: number, r: number, fill: string) {
   ].join("\n");
 }
 
-export function ticketFromBooking(booking: BookingLike, catalog?: CatalogLike | null): TicketDocument {
+type TicketBrand = {
+  name?: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  logoUrl?: string;
+};
+
+export function ticketFromBooking(
+  booking: BookingLike,
+  catalog?: CatalogLike | null,
+  brand?: TicketBrand | null,
+): TicketDocument {
   const service = booking?.service || "flight";
   const query = booking?.searchQuery || {};
   const fare = booking?.selectedFare || catalog?.selectedFare || null;
@@ -375,10 +388,11 @@ export function ticketFromBooking(booking: BookingLike, catalog?: CatalogLike | 
     reference: String(booking?.reference || "-"),
     status: "CONFIRMED / TICKETED - ONLINE",
     company: {
-      name: "APL Travel",
-      address: "123, Noida, Uttar Pradesh, India - 201301",
-      email: "hello@apltravel.com",
-      phone: "+91 120 456 7890",
+      name: brand?.name || "APL Travel",
+      address: brand?.address || "123, Noida, Uttar Pradesh, India - 201301",
+      email: brand?.email || "hello@apltravel.com",
+      phone: brand?.phone || "+91 120 456 7890",
+      logoUrl: brand?.logoUrl || "",
     },
     service,
     contact: {
@@ -493,9 +507,16 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
   // ── Header band (fixed 88pt) ─────────────────────────────────────
   const headerH = 88;
   commands.push(rect(0, PAGE_HEIGHT - headerH, PAGE_WIDTH, headerH, brandDeep));
+  const mark = company.name
+    .split(/\s+/)
+    .map((word) => word[0] || "")
+    .join("")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase()
+    .slice(0, 3) || "APL";
   commands.push(circleFill(MARGIN + 22, PAGE_HEIGHT - 44, 20, "1 1 1"));
-  commands.push(text("F2", 10, MARGIN + 10, PAGE_HEIGHT - 48, "APL", brandDeep));
-  commands.push(text("F2", 16, MARGIN + 52, PAGE_HEIGHT - 38, "APL Travel", "1 1 1"));
+  commands.push(text("F2", 10, MARGIN + 10, PAGE_HEIGHT - 48, mark, brandDeep));
+  commands.push(text("F2", 16, MARGIN + 52, PAGE_HEIGHT - 38, company.name, "1 1 1"));
   commands.push(
     text("F1", 8, MARGIN + 52, PAGE_HEIGHT - 54, "Electronic Ticket / Itinerary Receipt", "0.85 0.95 0.97"),
   );
@@ -729,7 +750,7 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
   const signX = MARGIN + fareColW + 12;
   commands.push(strokeRect(signX, y - boxH, signColW, boxH, lineSoft, 1));
   commands.push(textInBox("F2", 9, signX + 12, y - 18, "Authorized Signatory", signColW - 24, brandDeep));
-  commands.push(textInBox("F2", 10, signX + 12, y - 36, "APL Travel", signColW - 24, ink));
+  commands.push(textInBox("F2", 10, signX + 12, y - 36, company.name, signColW - 24, ink));
   commands.push(line(signX + 12, y - 56, signX + signColW - 16, y - 56, brand, 1));
   commands.push(textInBox("F1", 7, signX + 12, y - 70, "Digitally authorised e-ticket", signColW - 24, muted));
   commands.push(textInBox("F1", 7, signX + 12, y - 82, prettyDate(doc.bookedAt), signColW - 24, muted));
@@ -738,7 +759,7 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
 
   // ── Footer disclaimer (constrained, no overflow) ─────────────────
   const disclaimer =
-    "Important: Carry a valid photo ID matching passenger names. Arrive at the airport at least 2 hours before domestic departure. This e-ticket is non-transferable. Fare rules of the selected tier apply for changes and cancellations. APL Travel acts as a booking facilitator; airline operating conditions remain binding.";
+    `Important: Carry a valid photo ID matching passenger names. Arrive at the airport at least 2 hours before domestic departure. This e-ticket is non-transferable. Fare rules of the selected tier apply for changes and cancellations. ${company.name} acts as a booking facilitator; airline operating conditions remain binding.`;
   const disclaimerLines = wrapLines(disclaimer, CONTENT_W, 7, 5);
   const footerBottom = 36;
   const needed = disclaimerLines.length * 9 + 14;
@@ -749,7 +770,7 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
     commands.push(text("F1", 7, MARGIN, y, entry, muted));
     y -= 9;
   });
-  commands.push(text("F1", 7, MARGIN, 24, "APL Travel · Generated for A4 print · Page 1 of 1", muted));
+  commands.push(text("F1", 7, MARGIN, 24, `${company.name} · Generated for A4 print · Page 1 of 1`, muted));
 
   const stream = commands.join("\n");
   const objects: string[] = [];

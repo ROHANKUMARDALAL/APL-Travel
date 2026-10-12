@@ -3,8 +3,11 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import AuthForms from "@/components/auth/AuthForms";
+import { useSite } from "@/components/site/SiteProvider";
 
 export default function AuthModal({ open, onClose }) {
+  const { branding, tenant } = useSite();
+  const brandName = branding.websiteName || tenant.displayName || "APL Travel";
   useEffect(() => {
     if (!open) return undefined;
 
@@ -44,7 +47,12 @@ export default function AuthModal({ open, onClose }) {
           <span className="auth-modal-spark auth-modal-spark-a" aria-hidden="true" />
           <span className="auth-modal-spark auth-modal-spark-b" aria-hidden="true" />
           <span className="auth-modal-spark auth-modal-spark-c" aria-hidden="true" />
-          <p className="auth-modal-brand">APL Travel</p>
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logoUrl} alt={brandName} className="auth-modal-brand h-8 w-auto max-w-[140px] object-contain" />
+          ) : (
+            <p className="auth-modal-brand">{brandName}</p>
+          )}
           <button type="button" className="auth-modal-close" aria-label="Close" onClick={onClose}>
             ×
           </button>

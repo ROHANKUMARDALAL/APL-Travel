@@ -20,7 +20,7 @@ import {
   TransferMainDetails,
   PoliciesBlock,
 } from "@/components/booking/MainDetails";
-import { getActiveMarketId } from "@/data/markets";
+import { formatMoney, getActiveMarketId } from "@/data/markets";
 import {
   BOOKING_EXTRAS,
   buildCheckoutHref,
@@ -49,6 +49,13 @@ import { isValidAge, ageFromDob } from "@/components/booking/TravellerForms";
 import { dobErrorForType } from "@/lib/travellerAge";
 import TravellerPickerModal from "@/components/booking/TravellerPickerModal";
 import { selectedFareSnapshot, withSelectedFare } from "@/lib/fareSelection";
+import { PromoCodeField } from "@/components/checkout/PromoWallet";
+import FlightAddOnsModal, {
+  passengerAddOnTotal,
+  passengerSummary,
+  selectionsToAddOns,
+} from "@/components/booking/FlightAddOns";
+import { apiPost } from "@/lib/api/client";
 
 function emailOk(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || "");
@@ -221,10 +228,37 @@ export default function BookingDetailsPage({ service }) {
   });
   const [seatMessage, setSeatMessage] = useState("");
   const [contact, setContact] = useState({ email: "", phone: "" });
+  const [couponPromo, setCouponPromo] = useState(null);
+  const [supplierSsr, setSupplierSsr] = useState(null);
+  const [ssrStatus, setSsrStatus] = useState("idle");
+  const [ssrSelections, setSsrSelections] = useState({});
+  const [ssrPassengerId, setSsrPassengerId] = useState(null);
   const [savedTravellers, setSavedTravellers] = useState([]);
   const [accountReady, setAccountReady] = useState(false);
   const [pageReady, setPageReady] = useState(false);
   const [picker, setPicker] = useState(null);
+
+  useEffect(() => {
+    if (service !== "flight" || !item?.searchId || !item?.id) return undefined;
+    let ignore = false;
+    setSsrStatus("loading");
+    apiPost("/flights/details", {
+      searchId: item.searchId,
+      aplFlightId: item.id,
+      aplFareId: item.aplFareId || undefined,
+    })
+      .then((data) => {
+        if (ignore) return;
+        setSupplierSsr(data);
+        setSsrStatus(data?.addOns ? "ready" : "empty");
+      })
+      .catch(() => {
+        if (!ignore) setSsrStatus("empty");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [service, item?.searchId, item?.id, item?.aplFareId]);
 
   useEffect(() => {
     if (service === "hotel" && rooms.length) {
@@ -291,6 +325,7 @@ export default function BookingDetailsPage({ service }) {
 
   function selectFare(nextFareId) {
     if (!nextFareId || nextFareId === fareId) return;
+    setSsrSelections({});
     const params = new URLSearchParams(searchParams.toString());
     params.set("fareId", nextFareId);
     router.replace(`?${params.toString()}`, { scroll: false });
@@ -312,6 +347,26 @@ export default function BookingDetailsPage({ service }) {
     seatCount: service === "bus" ? selectedSeats.length : 1,
     discount: 0,
   });
+
+  const flightSegments = service !== "flight"
+    ? []
+    : (pricedItem.segments?.length
+      ? pricedItem.segments
+      : [{
+          id: pricedItem.id || "segment-1",
+          from: pricedItem.from?.code || "",
+          to: pricedItem.to?.code || "",
+          flightNumber: pricedItem.flightNumber || "",
+        }]
+    ).map((segment, index) => ({
+      id: segment.id || `${pricedItem.id}-seg-${index}`,
+      from: segment.from || segment.origin || "",
+      to: segment.to || segment.destination || "",
+      flightNumber: segment.flightNumber || pricedItem.flightNumber || "",
+    }));
+  const flightAddOns = service === "flight"
+    ? selectionsToAddOns(ssrSelections)
+    : { amount: 0, seats: [], meals: [], baggage: [] };
 
   const extrasForSummary = selectedExtras.map((extra) => ({
     id: extra.id,
@@ -477,7 +532,8 @@ export default function BookingDetailsPage({ service }) {
       selectedSeat: service === "bus" ? selectedSeats : null,
       selectedFareId: fareSnapshot?.id || fareId || null,
       selectedFare: fareSnapshot,
-      extras: selectedExtraIds,
+      extras: service === "flight" ? [] : selectedExtraIds,
+      flightAddOns: service === "flight" ? selectionsToAddOns(ssrSelections) : null,
       contact,
       travellers:
         service === "flight"
@@ -640,6 +696,45 @@ export default function BookingDetailsPage({ service }) {
                       ? "Email and phone are filled from your profile. Change them here if this trip should use a different contact."
                       : ""
                   }
+                  renderAddOns={(person, index) => {
+                    const typeLabel = person.type === "child" ? "Child" : person.type === "infant" ? "Infant" : "Adult";
+                    const summary = Object.values(ssrSelections?.[person.id] || {}).map(passengerSummary).filter(Boolean).join(" · ");
+                    const total = passengerAddOnTotal(ssrSelections, person.id);
+                    return (
+                      <div className="passenger-addons">
+                        <button type="button" className="passenger-addons-btn" onClick={() => setSsrPassengerId(person.id)}>
+                          + Add-ons: Seat, Meal & Baggage
+                        </button>
+                        {ssrStatus === "loading" ? <p className="passenger-addons-note">Loading supplier add-ons…</p> : null}
+                        {ssrStatus === "empty" ? <p className="passenger-addons-note">Add-ons are unavailable for this fare.</p> : null}
+                        {summary ? (
+                          <p className="passenger-addons-summary">
+                            {summary}
+                            {total > 0 ? ` · ${formatMoney(total, marketId)}` : ""}
+                          </p>
+                        ) : null}
+                        <span className="sr-only">Passenger {index + 1} · {typeLabel}</span>
+                      </div>
+                    );
+                  }}
+                />
+                <FlightAddOnsModal
+                  open={Boolean(ssrPassengerId)}
+                  passenger={(() => {
+                    const person = flightTravellers.find((entry) => entry.id === ssrPassengerId);
+                    if (!person) return null;
+                    return {
+                      ...person,
+                      label: `Passenger ${flightTravellers.findIndex((entry) => entry.id === person.id) + 1}`,
+                      typeLabel: person.type === "child" ? "Child" : person.type === "infant" ? "Infant" : "Adult",
+                    };
+                  })()}
+                  segments={flightSegments}
+                  catalog={supplierSsr?.addOns || null}
+                  includedBaggage={supplierSsr?.baggage || null}
+                  selections={ssrSelections}
+                  onClose={() => setSsrPassengerId(null)}
+                  onChange={setSsrSelections}
                 />
                 </>
               ) : null}
@@ -709,12 +804,41 @@ export default function BookingDetailsPage({ service }) {
                 />
               ) : null}
 
-              <ExtrasSelector
-                extrasCatalog={extrasCatalog}
-                selectedIds={selectedExtraIds}
-                onToggle={toggleExtra}
-                nights={nights}
+              <PromoCodeField
+                service={service}
+                searchId={item?.searchId || ""}
+                offerId={
+                  service === "flight"
+                    ? pricedItem?.aplFareId || fareId || item?.id || ""
+                    : service === "hotel"
+                      ? selectedRoom?.id || ""
+                      : item?.aplOfferId || item?.id || ""
+                }
+                promo={couponPromo}
+                onApply={setCouponPromo}
+                onRemove={() => {
+                  setCouponPromo(null);
+                  if (service === "flight" && item?.searchId && item?.id) {
+                    const fare = pricedItem?.aplFareId || fareId;
+                    if (fare) {
+                      void apiPost("/flights/revalidate", {
+                        searchId: item.searchId,
+                        aplFlightId: item.id,
+                        aplFareId: fare,
+                      }).catch(() => undefined);
+                    }
+                  }
+                }}
               />
+
+              {service === "flight" ? null : (
+                <ExtrasSelector
+                  extrasCatalog={extrasCatalog}
+                  selectedIds={selectedExtraIds}
+                  onToggle={toggleExtra}
+                  nights={nights}
+                />
+              )}
 
               {formMessage ? (
                 <p className="field-error booking-form-message" role="alert">
@@ -729,6 +853,18 @@ export default function BookingDetailsPage({ service }) {
               nights={service === "hotel" ? nights : 1}
               fareLabel={service === "flight" ? activeFare?.label || "" : ""}
               onContinue={handleContinue}
+              addonsAmount={flightAddOns.amount}
+              coupon={
+                couponPromo?.code
+                  ? {
+                      code: couponPromo.code,
+                      amount: Number(couponPromo.amount) || 0,
+                      currency: couponPromo.currency,
+                      payable: Number(couponPromo.payable),
+                      automaticDiscount: Number(couponPromo.automaticDiscount) || 0,
+                    }
+                  : null
+              }
             />
           </div>
         </div>

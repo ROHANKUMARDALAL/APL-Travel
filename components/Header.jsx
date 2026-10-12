@@ -29,8 +29,8 @@ export default function Header({
   const [authOpen, setAuthOpen] = useState(false);
   const forceLight = variant === "portal";
   const pinned = !forceLight && scrolled;
-  const { branding, services } = useSite();
-  const brandName = branding.websiteName || "APL Travel";
+  const { branding, services, tenant } = useSite();
+  const brandName = branding.websiteName || tenant?.displayName || tenant?.companyName || "";
 
   useEffect(() => {
     if (forceLight) return undefined;

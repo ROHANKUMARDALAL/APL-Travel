@@ -12,13 +12,15 @@ import {
 } from "@/lib/userBookings";
 import { formatShortDate } from "@/lib/resultsHelpers";
 import { getActiveMarketId, listCurrencies } from "@/data/markets";
-import { getWalletSummary } from "@/lib/wallet";
-import { getReferralProfile } from "@/lib/referral";
+import { loadWallet } from "@/lib/wallet";
+import { loadReferralProfile } from "@/lib/referral";
 export default function ProfileClient() {
   const { user } = useAuth();
   const marketId = getActiveMarketId();
   const currencyCode = user?.currency || "INR";
   const [upcoming, setUpcoming] = useState(null);
+  const [wallet, setWallet] = useState({ availableLabel: "—" });
+  const [referral, setReferral] = useState({ code: "" });
 
   useEffect(() => {
     let ignore = false;
@@ -29,16 +31,23 @@ export default function ProfileClient() {
       .catch(() => {
         if (!ignore) setUpcoming(null);
       });
+    loadWallet(marketId).then((data) => {
+      if (!ignore) setWallet(data);
+    }).catch(() => {
+      if (!ignore) setWallet({ availableLabel: "—" });
+    });
+    loadReferralProfile().then((data) => {
+      if (!ignore) setReferral(data);
+    }).catch(() => {
+      if (!ignore) setReferral({ code: "" });
+    });
     return () => {
       ignore = true;
     };
-  }, [user?.id]);
+  }, [user?.id, marketId]);
   const upcomingItem = upcoming
     ? findResultById(upcoming.service, upcoming.id)
     : null;
-  const wallet = getWalletSummary(marketId);
-  const referral = getReferralProfile({ marketId });
-
   return (
     <AccountShell title="Your travel hub">
       <section className="checkout-section account-panel account-welcome">
@@ -103,9 +112,7 @@ export default function ProfileClient() {
         <section className="checkout-section account-panel">
           <h3 className="checkout-section-title">Referrals</h3>
           <p className="wallet-stat-value">{referral.code}</p>
-          <p className="result-card-meta">
-            {referral.successful} successful · {referral.earnedRewardsLabel} earned
-          </p>
+          <p className="result-card-meta">Your code on this website</p>
           <Link className="btn-ghost" href="/account/referral">
             Share your code
           </Link>

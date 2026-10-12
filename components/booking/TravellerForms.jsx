@@ -156,6 +156,7 @@ export function FlightTravellerForm({
   savedTravellers = [],
   onSelectSaved,
   contactHint = "",
+  renderAddOns = null,
 }) {
   return (
     <section className="booking-section" id="traveller">
@@ -296,6 +297,7 @@ export function FlightTravellerForm({
               </>
             ) : null}
           </div>
+          {renderAddOns ? renderAddOns(person, index) : null}
         </div>
       ))}
 

@@ -4,13 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import ServiceSearch from "@/components/ServiceSearch";
-import ServiceOffers from "@/components/ServiceOffers";
-import BrandStrip from "@/components/BrandStrip";
-import TravelNotes from "@/components/TravelNotes";
 import Testimonials from "@/components/Testimonials";
-import HomeFaqs from "@/components/HomeFaqs";
+import HomeFromCms from "@/components/HomeFromCms";
+import { PopularFlightRoutes } from "@/components/PopularFlightRoutes";
 import Footer from "@/components/Footer";
-import { AIRLINE_BRANDS, PARTNER_BRANDS } from "@/data/static";
 import {
   normalizeService,
   parseBusSearchParams,
@@ -97,31 +94,25 @@ export default function Dashboard() {
         onServiceChange={onServiceChange}
       />
 
-      <section className="relative overflow-hidden bg-[linear-gradient(145deg,var(--hero-from),var(--hero-via)_45%,var(--hero-to))] pb-28 pt-10 sm:pb-32 sm:pt-14">
-        <div
-          className="hero-glow pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-[var(--brand-bright)]/30 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-[var(--accent)]/20 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          className="hero-dots pointer-events-none absolute inset-0 opacity-[0.12]"
-          aria-hidden="true"
-        />
+      <section className="hero-band relative bg-[linear-gradient(145deg,var(--hero-from),var(--hero-via)_45%,var(--hero-to))] pb-28 pt-10 sm:pb-32 sm:pt-14">
+        <div className="hero-decor" aria-hidden="true">
+          <div className="hero-glow pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-[var(--brand-bright)]/30 blur-3xl" />
+          <div className="pointer-events-none absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-[var(--accent)]/20 blur-3xl" />
+          <div className="hero-dots pointer-events-none absolute inset-0 opacity-[0.12]" />
+        </div>
 
         <div className="container-page relative z-10">
           <p className="fade-up text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-bright)]">
             {branding.websiteName || "APL Travel"}
           </p>
           <h1 className="fade-up font-display mt-4 max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
-            {heroBanner?.title || "Book flights, hotels, buses, and transfers in one calm place."}
+            {heroBanner?.title || branding.websiteName || "Search and book travel"}
           </h1>
-          <p className="fade-up-delay-1 mt-5 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
-            {branding.tagline ||
-              "A fast global travel platform with beautiful search, curated deals, and a clear booking experience."}
-          </p>
+          {branding.tagline ? (
+            <p className="fade-up-delay-1 mt-5 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
+              {branding.tagline}
+            </p>
+          ) : null}
           {heroBanner?.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -146,23 +137,9 @@ export default function Dashboard() {
           </div>
         </section>
       )}
-      {activeService === "flight" && offeredIds.includes("flight") ? (
-        <BrandStrip
-          eyebrow="Airlines"
-          title="Carriers you can fly with"
-          items={AIRLINE_BRANDS}
-        />
-      ) : null}
-      <ServiceOffers activeService={activeService} />
-      <TravelNotes />
-      <BrandStrip
-        eyebrow="Partners"
-        title="Teams behind the journey"
-        items={PARTNER_BRANDS}
-        variant="cards"
-      />
+      <PopularFlightRoutes enabled={services.length > 0} service={activeService} />
+      <HomeFromCms activeService={activeService} />
       <Testimonials />
-      <HomeFaqs />
       <Footer />
     </div>
   );

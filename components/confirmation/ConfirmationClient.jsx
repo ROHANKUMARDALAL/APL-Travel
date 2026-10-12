@@ -13,6 +13,7 @@ import { loadConfirmation, saveConfirmation, whatHappensNext } from "@/lib/confi
 import { formatShortDate, travellerLabel } from "@/lib/resultsHelpers";
 import { getActiveMarketId } from "@/data/markets";
 import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
+import { useSite } from "@/components/site/SiteProvider";
 import { withSelectedFare } from "@/lib/fareSelection";
 import ETicketPreview from "@/components/confirmation/ETicketPreview";
 
@@ -53,6 +54,14 @@ function buildCalendarHref(confirmation, item) {
 export default function ConfirmationClient() {
   const searchParams = useSearchParams();
   const { authenticated, user } = useAuth();
+  const { branding, tenant, contact } = useSite();
+  const ticketBrand = {
+    name: branding.websiteName || tenant.displayName || "APL Travel",
+    address: contact?.address || "",
+    email: contact?.email || "",
+    phone: contact?.phone || "",
+    logoUrl: branding.logoUrl || "",
+  };
   const [confirmation, setConfirmation] = useState(null);
   const [accountUser, setAccountUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -296,7 +305,7 @@ export default function ConfirmationClient() {
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => downloadTicketPdf(ticketFromBooking(confirmation, item))}
+            onClick={() => downloadTicketPdf(ticketFromBooking(confirmation, item, ticketBrand))}
           >
             Download e-ticket PDF
           </button>

@@ -20,6 +20,7 @@ import { cancelMyBooking } from "@/lib/api/booking";
 import { formatShortDate } from "@/lib/resultsHelpers";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
+import { useSite } from "@/components/site/SiteProvider";
 import { useAuth } from "@/components/auth/useAuth";
 
 function statusClass(booking) {
@@ -31,6 +32,14 @@ function statusClass(booking) {
 export default function TripDetailsClient({ reference }) {
   const router = useRouter();
   const { user } = useAuth();
+  const { branding, tenant, contact } = useSite();
+  const ticketBrand = {
+    name: branding.websiteName || tenant.displayName || "APL Travel",
+    address: contact?.address || "",
+    email: contact?.email || "",
+    phone: contact?.phone || "",
+    logoUrl: branding.logoUrl || "",
+  };
   const [booking, setBooking] = useState(null);
   const [ready, setReady] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -238,7 +247,7 @@ export default function TripDetailsClient({ reference }) {
           type="button"
           className="btn-ghost"
           onClick={() =>
-            downloadTicketPdf(ticketFromBooking(booking, findResultById(booking.service, booking.id)))
+            downloadTicketPdf(ticketFromBooking(booking, findResultById(booking.service, booking.id), ticketBrand))
           }
         >
           Download ticket

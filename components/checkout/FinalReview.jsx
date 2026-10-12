@@ -37,7 +37,7 @@ export function FinalReview({
   let dateLine = "";
 
   if (service === "flight") {
-    bookingLine = `${item.airline} · ${item.from.code} → ${item.to.code}`;
+    bookingLine = `${item.airline}${item.flightNumber ? ` · ${item.flightNumber}` : ""} · ${item.from.code} → ${item.to.code}`;
     dateLine = formatShortDate(query.depart, marketId);
   } else if (service === "hotel") {
     bookingLine = item.name;

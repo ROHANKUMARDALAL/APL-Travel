@@ -11,6 +11,8 @@ export default function PriceSummary({
   continueLabel = "Continue to checkout",
   continueDisabled = false,
   stickyMobile = true,
+  coupon = null,
+  addonsAmount = 0,
 }) {
   const marketId = getActiveMarketId();
 
@@ -42,9 +44,27 @@ export default function PriceSummary({
               <dd>−{totals.discountLabel}</dd>
             </div>
           ) : null}
+          {coupon?.code ? (
+            <div className="is-discount">
+              <dt>Coupon {coupon.code}</dt>
+              <dd>−{formatMoney(coupon.amount || 0, marketId, coupon.currency || totals.currency)}</dd>
+            </div>
+          ) : null}
+          {addonsAmount > 0 ? (
+            <div>
+              <dt>Seat, meal and baggage</dt>
+              <dd>{formatMoney(addonsAmount, marketId, totals.currency)}</dd>
+            </div>
+          ) : null}
+          {coupon?.automaticDiscount > 0 ? (
+            <div className="is-discount">
+              <dt>Automatic discount</dt>
+              <dd>−{formatMoney(coupon.automaticDiscount, marketId, coupon.currency || totals.currency)}</dd>
+            </div>
+          ) : null}
           <div className="is-total">
-            <dt>Total</dt>
-            <dd>{totals.totalLabel}</dd>
+            <dt>Total Payable</dt>
+            <dd>{formatMoney((Number.isFinite(Number(coupon?.payable)) ? Number(coupon.payable) : totals.total || 0) + (addonsAmount || 0), marketId, coupon?.currency || totals.currency)}</dd>
           </div>
         </dl>
 
@@ -84,7 +104,7 @@ export default function PriceSummary({
       {stickyMobile ? (
         <div className="price-summary-mobile-bar">
           <div>
-            <p className="price-summary-mobile-total">{totals.totalLabel}</p>
+            <p className="price-summary-mobile-total">{formatMoney((Number.isFinite(Number(coupon?.payable)) ? Number(coupon.payable) : totals.total || 0) + (addonsAmount || 0), marketId, coupon?.currency || totals.currency)}</p>
             <p className="price-summary-mobile-meta">Incl. taxes & fees</p>
           </div>
           <button

@@ -1,85 +1,143 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSite } from "@/components/site/SiteProvider";
+import { getMarket } from "@/data/markets";
+import { buildPopularFlightSearch } from "@/lib/searchQuery";
 
-function FooterColumn({ title, links }) {
-  if (!links?.length) return null;
+function FooterAnchor({ href, children }) {
+  const target = href || "/";
+  const external = /^https?:\/\//i.test(target);
+  if (external) {
+    return (
+      <a className="site-footer-link" href={target} target="_blank" rel="noreferrer">
+        {children}
+      </a>
+    );
+  }
   return (
-    <div>
-      <p className="footer-heading">{title}</p>
-      <ul className="space-y-2.5">
-        {links.map((link) => (
-          <li key={`${title}-${link.label}-${link.href}`}>
-            <Link className="footer-link" href={link.href || "/"}>
-              {link.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Link className="site-footer-link" href={target}>
+      {children}
+    </Link>
   );
 }
 
-/** Global footer — brand/contact/links from public site config with static fallback. */
+function FooterColumn({ title, links }) {
+  const [open, setOpen] = useState(false);
+  if (!links?.length) return null;
+  return (
+    <section className="site-footer-col">
+      <button type="button" className="site-footer-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        {title}
+      </button>
+      <h2 className="site-footer-heading">{title}</h2>
+      <ul className={open ? "site-footer-links is-open" : "site-footer-links"}>
+        {links.map((link) => (
+          <li key={`${title}-${link.label}-${link.href}`}>
+            <FooterAnchor href={link.href}>{link.label}</FooterAnchor>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function Footer() {
   const year = new Date().getFullYear();
-  const { branding, contact, footerGroups, social } = useSite();
-  const brandName = branding.websiteName || "APL Travel";
-
+  const router = useRouter();
+  const { branding, footerGroups, social, tenant, services } = useSite();
+  const brandName = branding.websiteName || tenant?.displayName || tenant?.companyName || "";
+  const columns = footerGroups?.columns?.length
+    ? footerGroups.columns
+    : [
+        { title: "Company", links: footerGroups?.company || [] },
+        { title: "Support", links: footerGroups?.support || [] },
+      ];
+  const legal = footerGroups?.legal || [];
   const socialEntries = [
-    ["Facebook", social.facebook],
-    ["Instagram", social.instagram],
-    ["LinkedIn", social.linkedin],
-    ["X", social.twitter],
-    ["YouTube", social.youtube],
+    ["Facebook", social?.facebook],
+    ["Instagram", social?.instagram],
+    ["LinkedIn", social?.linkedin],
+    ["X", social?.twitter],
+    ["YouTube", social?.youtube],
   ].filter(([, href]) => Boolean(href));
+  const flightEnabled = (services || []).some((service) => String(service.id || service.code || "").toLowerCase() === "flight");
+  const [destinations, setDestinations] = useState([]);
+
+  useEffect(() => {
+    if (!flightEnabled) return undefined;
+    let cancelled = false;
+    fetch("/api/v1/public/popular-routes", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled) return;
+        const groups = Array.isArray(payload?.data?.groups) ? payload.data.groups : [];
+        const flight = groups.find((group) => group.serviceCode === "flight");
+        setDestinations(Array.isArray(flight?.routes) ? flight.routes : []);
+      })
+      .catch(() => {
+        if (!cancelled) setDestinations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [flightEnabled]);
+
+  const market = getMarket();
 
   return (
-    <footer id="footer" className="bg-[var(--hero-from)] pt-14 text-white sm:pt-16">
-      <div className="container-page">
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2">
-            <p className="brand-mark">{brandName}</p>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/70">
-              {branding.tagline}
-            </p>
-            <div className="mt-5 space-y-1 text-sm text-white/70">
-              {contact.email ? <p>{contact.email}</p> : null}
-              {contact.phone ? <p>{contact.phone}</p> : null}
-              {contact.address ? <p>{contact.address}</p> : null}
-            </div>
-            {socialEntries.length ? (
-              <ul className="mt-4 flex flex-wrap gap-3 text-sm text-white/70">
-                {socialEntries.map(([label, href]) => (
-                  <li key={label}>
-                    <a className="footer-link" href={href} target="_blank" rel="noreferrer">
-                      {label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+    <footer id="footer" className="site-footer">
+      {flightEnabled && destinations.length ? (
+        <section className="site-footer-destinations">
+          <div className="container-page">
+            <h2>Popular Destinations</h2>
+            <ul>
+              {destinations.map((route) => (
+                <li key={route.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const built = buildPopularFlightSearch(route);
+                      if (built?.href) router.push(built.href);
+                    }}
+                  >
+                    {route.destinationName || route.destinationCode}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-
-          <FooterColumn title="Company" links={footerGroups.company} />
-          <FooterColumn title="Services" links={footerGroups.services} />
-          <FooterColumn title="Support" links={footerGroups.support} />
+        </section>
+      ) : null}
+      <div className="container-page site-footer-main">
+        <div className="site-footer-grid">
+          {columns.map((column) => (
+            <FooterColumn key={column.title} title={column.title} links={column.links} />
+          ))}
+          {socialEntries.length ? (
+            <FooterColumn
+              title="Connect"
+              links={socialEntries.map(([label, href]) => ({ label, href }))}
+            />
+          ) : null}
         </div>
-
-        <div className="mt-12 flex flex-col gap-4 border-t border-white/10 py-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-white/50">
-            © {year} {brandName}. All rights reserved.
-          </p>
-          <ul className="flex flex-wrap gap-5">
-            {(footerGroups.legal || []).map((link) => (
-              <li key={`legal-${link.label}-${link.href}`}>
-                <Link className="footer-link" href={link.href || "/"}>
-                  {link.label}
-                </Link>
-              </li>
+        <div className="site-footer-bottom">
+          <div className="site-footer-brand">
+            {branding.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={branding.logoUrl} alt={brandName || "Website logo"} />
+            ) : null}
+            {brandName ? <p>{brandName}</p> : null}
+          </div>
+          <p>© {year}{brandName ? ` ${brandName}` : ""}. All rights reserved.</p>
+          <div className="site-footer-meta">
+            {market?.currency ? <span>{market.currency}{market.label ? ` · ${market.label}` : ""}</span> : null}
+            {legal.map((link) => (
+              <FooterAnchor key={`${link.label}-${link.href}`} href={link.href}>{link.label}</FooterAnchor>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
     </footer>

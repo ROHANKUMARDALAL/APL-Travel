@@ -90,6 +90,21 @@ export default function CheckoutPageClient() {
   const { user: accountUser } = useAuth();
 
   useEffect(() => {
+    const storedCode = window.sessionStorage.getItem("apl-coupon-code");
+    const storedSavings = Number(window.sessionStorage.getItem("apl-coupon-savings"));
+    if (storedCode) {
+      const storedMax = window.sessionStorage.getItem("apl-coupon-max");
+      const storedValue = window.sessionStorage.getItem("apl-coupon-value");
+      setPromo({
+        code: storedCode,
+        label: storedCode,
+        amount: Number.isFinite(storedSavings) ? storedSavings : undefined,
+        currency: window.sessionStorage.getItem("apl-coupon-currency") || "INR",
+        adjustmentType: window.sessionStorage.getItem("apl-coupon-type") || null,
+        value: storedValue ? Number(storedValue) : null,
+        maxAmount: storedMax ? Number(storedMax) : null,
+      });
+    }
     const loaded = loadBookingDraft();
     const user = getCurrentUser();
     let next = loaded;
@@ -260,6 +275,7 @@ export default function CheckoutPageClient() {
       promo,
       walletApplied,
       marketId,
+      ssrAmount: draft.flightAddOns?.amount || 0,
     });
   }, [draft, service, nights, promo, walletApplied, marketId]);
 
@@ -493,6 +509,7 @@ export default function CheckoutPageClient() {
           nationality: person.nationality || "IN",
           passportNumber: person.passport,
           passportExpiry: person.passportExpiry,
+          passengerKey: person.id || person.passengerKey || null,
         }));
         const selectedQuote =
           draft.selectedFare?.quote ||
@@ -528,6 +545,7 @@ export default function CheckoutPageClient() {
                   paxCount: item?.paxCount,
                 }),
                 extras: draft.extras || [],
+                addOns: draft.flightAddOns || undefined,
                 contact: draft.contact,
                 travellers: flightTravellers,
                 payment,
@@ -707,6 +725,14 @@ export default function CheckoutPageClient() {
                 ageErrors={errors}
               />
               <PromoCodeField
+                service={service}
+                searchId={draft?.apiBooking?.searchId || ""}
+                offerId={
+                  draft?.apiBooking?.aplFareId
+                  || draft?.apiBooking?.aplRoomId
+                  || draft?.apiBooking?.aplOfferId
+                  || ""
+                }
                 promo={promo}
                 usedCodes={usedCodes}
                 onApply={(nextPromo) => {

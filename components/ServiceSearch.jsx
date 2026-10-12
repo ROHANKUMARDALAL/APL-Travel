@@ -49,8 +49,10 @@ export default function ServiceSearch({
     <section id="search" className="relative z-10 -mt-16 scroll-mt-24 sm:-mt-20">
       <div className="container-page">
         <div className="search-panel-shell fade-up-delay-2">
-          <div className="search-panel-glow" aria-hidden="true" />
-          <div className="search-panel-glow search-panel-glow-alt" aria-hidden="true" />
+          <div className="search-panel-aura" aria-hidden="true">
+            <div className="search-panel-glow" />
+            <div className="search-panel-glow search-panel-glow-alt" />
+          </div>
 
           <div className="search-panel">
             <div

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteChrome from "@/components/layout/SiteChrome";
+import { BlogCover } from "@/components/blog/BlogGallery";
 import { getPublicBlogs } from "@/lib/site/config";
 
 export const metadata = {
@@ -24,13 +25,16 @@ export default async function BlogsPage() {
             {items.map((post) => (
               <li
                 key={post.slug}
-                className="rounded-xl border border-[var(--line)] bg-white p-5 shadow-sm"
+                className="overflow-hidden rounded-xl border border-[var(--line)] bg-white shadow-sm"
               >
-                <Link href={`/blogs/${post.slug}`} className="block">
+                <Link href={`/blogs/${post.slug}`} className="block overflow-hidden">
+                  <BlogCover post={post} />
+                  <span className="block p-5">
                   <h2 className="text-lg font-semibold text-[var(--ink)]">{post.title}</h2>
                   <p className="mt-2 text-sm text-[var(--ink-muted)]">
                     {post.shortDescription || "Read more"}
                   </p>
+                  </span>
                 </Link>
               </li>
             ))}

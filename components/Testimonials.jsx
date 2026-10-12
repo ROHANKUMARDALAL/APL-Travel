@@ -29,6 +29,14 @@ export default function Testimonials() {
                 className="h-full"
               >
                 <blockquote className="testimonial-card h-full">
+                  {item.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      className="mb-4 h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : null}
                   <div
                     className="mb-4 flex gap-1 text-[var(--accent)]"
                     aria-label={`${item.rating} stars`}

@@ -16,7 +16,7 @@ import {
 } from "@/lib/support";
 import { getBookingHeadline, loadAccountBookings } from "@/lib/userBookings";
 import { findResultById } from "@/lib/booking";
-import { FOOTER } from "@/data/static";
+import { useSite } from "@/components/site/SiteProvider";
 
 const POPULAR_TOPICS = [
   { label: "Change a flight", href: "#help-center", topic: "flight" },
@@ -222,6 +222,8 @@ function ContactSection() {
 }
 
 function BookingHelpSection({ user }) {
+  const { branding, tenant } = useSite();
+  const brandName = branding.websiteName || tenant?.displayName || tenant?.companyName || "this website";
   const [bookings, setBookings] = useState([]);
   useEffect(() => {
     let ignore = false;
@@ -370,7 +372,7 @@ function BookingHelpSection({ user }) {
         <div className="support-empty">
           <p className="section-copy">No support requests yet.</p>
           <p className="dev-note">
-            Submitted tickets for {FOOTER.brand} will appear here.
+            Submitted tickets for {brandName} will appear here.
           </p>
         </div>
       ) : (

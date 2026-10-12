@@ -21,7 +21,10 @@ export function FlightMainDetails({ item, searchQuery, selectedFareId, onSelectF
     <section className="booking-section flight-detail-rich" id="details">
       <div className="booking-header-row">
         <div>
-          <p className="result-card-kicker">{item.airline}</p>
+          <p className="result-card-kicker">
+            {item.airline}
+            {item.flightNumber ? ` · Flight ${item.flightNumber}` : ""}
+          </p>
           <h1 className="booking-title">
             {item.from.city} ({item.from.code}) → {item.to.city} ({item.to.code})
           </h1>
@@ -70,7 +73,7 @@ export function FlightMainDetails({ item, searchQuery, selectedFareId, onSelectF
         </div>
         {item.returnLeg ? (
           <div className="flight-leg flight-leg-details">
-            <p className="flight-leg-label">Return · {item.returnLeg.airline}</p>
+            <p className="flight-leg-label">Return{item.returnLeg.flightNumber ? ` · ${item.returnLeg.flightNumber}` : ""} · {item.returnLeg.airline}</p>
             <div className="flight-timeline">
               <div>
                 <p className="flight-time">{item.returnLeg.from.time}</p>

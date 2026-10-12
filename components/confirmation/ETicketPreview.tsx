@@ -1,6 +1,7 @@
 "use client";
 
 import { ticketFromBooking, type TicketDocument } from "@/lib/ticketPdf";
+import { useSite } from "@/components/site/SiteProvider";
 
 type ETicketPreviewProps = {
   confirmation: Parameters<typeof ticketFromBooking>[0];
@@ -53,7 +54,21 @@ function FlightItinerary({ ticket }: { ticket: TicketDocument }) {
 }
 
 export default function ETicketPreview({ confirmation, item }: ETicketPreviewProps) {
-  const ticket = ticketFromBooking(confirmation, item);
+  const { branding, tenant, contact } = useSite();
+  const brand = {
+    name: branding.websiteName || tenant.displayName || "APL Travel",
+    address: contact?.address || "",
+    email: contact?.email || "",
+    phone: contact?.phone || "",
+    logoUrl: branding.logoUrl || "",
+  };
+  const ticket = ticketFromBooking(confirmation, item, brand);
+  const mark = ticket.company.name
+    .split(/\s+/)
+    .map((word) => word[0] || "")
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(ticket.reference || "APL")}`;
 
   return (
@@ -66,11 +81,16 @@ export default function ETicketPreview({ confirmation, item }: ETicketPreviewPro
       <article className="eticket-sheet" aria-label="E-ticket">
         <header className="eticket-header">
           <div className="eticket-brand">
-            <span className="eticket-logo" aria-hidden="true">
-              APL
-            </span>
+            {ticket.company.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={ticket.company.logoUrl} alt="" className="h-10 w-auto max-w-[140px] rounded bg-white object-contain p-1" />
+            ) : (
+              <span className="eticket-logo" aria-hidden="true">
+                {mark || "APL"}
+              </span>
+            )}
             <div className="eticket-brand-copy">
-              <p className="eticket-brand-name">APL Travel</p>
+              <p className="eticket-brand-name">{ticket.company.name}</p>
               <p className="eticket-brand-sub">Electronic Ticket / Itinerary Receipt</p>
             </div>
           </div>

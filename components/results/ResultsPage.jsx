@@ -244,6 +244,14 @@ export default function ResultsPage({ service }) {
   const [loadError, setLoadError] = useState("");
 
   const [status, setStatus] = useState("loading");
+  const searchKey = searchParams.toString();
+  const [activeSearchKey, setActiveSearchKey] = useState(searchKey);
+  if (activeSearchKey !== searchKey) {
+    setActiveSearchKey(searchKey);
+    setStatus("loading");
+    setRawItems([]);
+    setLoadError("");
+  }
   const [sort, setSort] = useState("recommended");
   const [filters, setFilters] = useState(() => defaultFilters(service));
   const [filtersOpen, setFiltersOpen] = useState(false);

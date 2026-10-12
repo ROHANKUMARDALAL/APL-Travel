@@ -1,58 +1,142 @@
 "use client";
 
 import { useState } from "react";
-import { applyPromoCode } from "@/lib/checkoutPricing";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 
-export function PromoCodeField({ promo, usedCodes, onApply, onRemove }) {
+export function PromoCodeField({ promo, onApply, onRemove, service = "flight", searchId = "", offerId = "" }) {
   const [code, setCode] = useState("");
   const [feedback, setFeedback] = useState(null);
+  const [pending, setPending] = useState(false);
 
-  function handleApply(event) {
+  async function handleApply(event) {
     event.preventDefault();
-    const result = applyPromoCode(code, usedCodes);
-    setFeedback(result);
-    if (result.ok) {
-      onApply(result.promo);
+    setPending(true);
+    setFeedback(null);
+    try {
+      const response = await fetch("/api/v1/bookings/coupon-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          serviceCode: service,
+          searchId: searchId || undefined,
+          offerId: offerId || undefined,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload?.success === false) {
+        window.sessionStorage.removeItem("apl-coupon-code");
+        window.sessionStorage.removeItem("apl-coupon-unit");
+        window.sessionStorage.removeItem("apl-coupon-currency");
+        window.sessionStorage.removeItem("apl-coupon-type");
+        window.sessionStorage.removeItem("apl-coupon-value");
+        window.sessionStorage.removeItem("apl-coupon-max");
+        const message = payload?.error?.ErrorMessage || payload?.error?.message || "Invalid coupon";
+        setFeedback({ status: "error", message });
+        return;
+      }
+      const quote = payload.data.quote || null;
+      window.sessionStorage.setItem("apl-coupon-code", payload.data.coupon.code);
+      window.sessionStorage.setItem("apl-coupon-service", service);
+      if (quote?.couponSavings != null) {
+        window.sessionStorage.setItem("apl-coupon-savings", String(quote.couponSavings));
+      }
+      if (quote?.total != null) {
+        window.sessionStorage.setItem("apl-coupon-unit", String(quote.total));
+        window.sessionStorage.setItem("apl-coupon-currency", quote.currency || "INR");
+      }
+      const applied = {
+        code: payload.data.coupon.code,
+        label: payload.data.coupon.name,
+        amount: quote?.couponSavings,
+        payable: quote?.total,
+        currency: quote?.currency,
+        fare: quote?.fare,
+        automaticDiscount: quote?.discount,
+        adjustmentType: payload.data.coupon.adjustmentType || quote?.couponAdjustmentType || null,
+        value: payload.data.coupon.value ?? quote?.couponValue ?? null,
+        maxAmount: payload.data.coupon.maxAmount ?? quote?.couponMaxAmount ?? null,
+      };
+      window.sessionStorage.setItem("apl-coupon-type", applied.adjustmentType || "");
+      window.sessionStorage.setItem("apl-coupon-value", applied.value == null ? "" : String(applied.value));
+      window.sessionStorage.setItem("apl-coupon-max", applied.maxAmount == null ? "" : String(applied.maxAmount));
+      onApply(applied);
+      const saved = quote?.couponSavings;
+      setFeedback({
+        status: "ok",
+        message: saved > 0
+          ? `Coupon applied. Discount ${saved} ${quote.currency || "INR"}.`
+          : "Coupon accepted. The payable amount is confirmed at checkout.",
+      });
       setCode("");
+    } catch {
+      setFeedback({ status: "error", message: "Invalid coupon" });
+    } finally {
+      setPending(false);
     }
   }
 
+  function clearCoupon() {
+    window.sessionStorage.removeItem("apl-coupon-code");
+    window.sessionStorage.removeItem("apl-coupon-service");
+    window.sessionStorage.removeItem("apl-coupon-unit");
+    window.sessionStorage.removeItem("apl-coupon-currency");
+    window.sessionStorage.removeItem("apl-coupon-savings");
+    window.sessionStorage.removeItem("apl-coupon-type");
+    window.sessionStorage.removeItem("apl-coupon-value");
+    window.sessionStorage.removeItem("apl-coupon-max");
+    setFeedback(null);
+    onRemove();
+  }
+
+  const marketId = getActiveMarketId();
+  const savedAmount = Number(promo?.amount);
+  const savedLabel = Number.isFinite(savedAmount)
+    ? formatMoney(savedAmount, marketId, promo?.currency || "INR")
+    : "";
+  const maximum = Number(promo?.maxAmount);
+  const maximumLabel = Number.isFinite(maximum) && maximum > 0
+    ? formatMoney(maximum, marketId, promo?.currency || "INR")
+    : "";
+  const offerLabel = promo?.adjustmentType === "PERCENTAGE" && promo?.value != null
+    ? `${promo.value}% OFF${maximumLabel ? ` · Maximum ${maximumLabel}` : ""}`
+    : promo?.adjustmentType === "FIXED" && savedLabel
+      ? `${savedLabel} OFF`
+      : "";
+
   return (
-    <section className="checkout-section">
-      <h2 className="checkout-section-title">Promo or referral code</h2>
+    <section className="promo-card" aria-live="polite">
       {promo ? (
-        <div className="promo-applied">
-          <p>
-            <strong>{promo.code}</strong> — {promo.label}
-          </p>
-          <button type="button" className="btn-ghost" onClick={onRemove}>
-            Remove
+        <div className="promo-card-applied">
+          <span className="promo-card-icon" aria-hidden="true">✓</span>
+          <div>
+            <p className="promo-card-kicker">Coupon {promo.code} applied</p>
+            {offerLabel ? <p className="promo-card-code">{offerLabel}</p> : <p className="promo-card-code">{promo.code}</p>}
+            {savedLabel ? <p className="promo-card-save">You saved {savedLabel}</p> : null}
+          </div>
+          <button type="button" className="promo-remove" onClick={clearCoupon}>
+            Remove Coupon
           </button>
         </div>
       ) : (
-        <form className="promo-form" onSubmit={handleApply}>
-          <input
-            className="field-input"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="e.g. SAVE10"
-            aria-label="Promo or referral code"
-          />
-          <button type="submit" className="btn-secondary promo-apply-btn">
-            Apply
+        <form className="promo-card-entry" onSubmit={(event) => void handleApply(event)}>
+          <span className="promo-card-icon" aria-hidden="true">%</span>
+          <div className="promo-card-copy">
+            <p className="promo-card-kicker">Have a promo code?</p>
+            <input
+              className={`field-input ${feedback?.status === "error" ? "is-invalid" : ""}`}
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="Enter coupon code"
+              aria-label="Enter coupon code"
+              disabled={pending}
+            />
+            {feedback?.status === "error" ? <p className="field-error">{feedback.message}</p> : null}
+          </div>
+          <button type="submit" className="promo-apply" disabled={pending || !code.trim()}>
+            {pending ? "Checking…" : "Apply Coupon"}
           </button>
         </form>
-      )}
-      {feedback ? (
-        <p
-          className={`promo-feedback is-${feedback.status}`}
-          role="status"
-        >
-          {feedback.message}
-        </p>
-      ) : (
-        <p className="result-card-meta">Try SAVE10 or WELCOME20</p>
       )}
     </section>
   );

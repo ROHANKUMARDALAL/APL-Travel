@@ -5,6 +5,17 @@ import Link from "next/link";
 import { formatDuration, formatPriceParts, getPriceParts } from "@/lib/resultsHelpers";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 
+function savingsNote(savings, marketId) {
+  if (!savings || !(Number(savings.amount) > 0)) return "";
+  const saved = formatMoney(savings.amount, marketId, savings.currency);
+  if (savings.adjustmentType !== "PERCENTAGE") return `${saved} OFF`;
+  const cap = Number(savings.maxAmount);
+  const capLabel = Number.isFinite(cap) && cap > 0
+    ? ` — Save up to ${formatMoney(cap, marketId, savings.currency)}`
+    : "";
+  return `${savings.value}% OFF${capLabel} · ${saved}`;
+}
+
 function FlightLeg({ label, from, to, durationMinutes, stops, stopLabel }) {
   return (
     <div className="flight-leg">
@@ -116,6 +127,8 @@ export default function FlightResultCard({ item, detailsHref }) {
                   ? `${item.airline} · ${returning.airline}`
                   : item.airline}
               </p>
+              {item.flightNumber ? <p className="result-card-meta">Flight {item.flightNumber}</p> : null}
+              {returning?.flightNumber ? <p className="result-card-meta">Return flight {returning.flightNumber}</p> : null}
             </div>
             <span className="flight-card-chip">
               {selectedFare?.cabin || item.cabin} · {formatDuration(item.durationMinutes)}
@@ -132,13 +145,24 @@ export default function FlightResultCard({ item, detailsHref }) {
           />
           {returning ? (
             <FlightLeg
-              label="Return"
+              label={returning.flightNumber ? `Return · ${returning.flightNumber}` : "Return"}
               from={returning.from}
               to={returning.to}
               durationMinutes={returning.durationMinutes}
               stops={returning.stops}
               stopLabel={returning.stopLabel}
             />
+          ) : null}
+          {Array.isArray(item.segments) && item.segments.length > 1 ? (
+            <ul className="result-card-meta">
+              {item.segments.map((segment) => (
+                <li key={segment.id}>
+                  {segment.from} → {segment.to}
+                  {segment.flightNumber ? ` · ${segment.flightNumber}` : ""}
+                  {segment.operatingCarrier ? ` · operated by ${segment.operatingCarrier}` : ""}
+                </li>
+              ))}
+            </ul>
           ) : null}
 
           <p className="result-card-meta">
@@ -156,6 +180,11 @@ export default function FlightResultCard({ item, detailsHref }) {
           {price.pax > 1 ? `${price.pax} travellers · ` : ""}
           {returning ? "Outbound + return" : `${price.baseLabel} + ${price.taxesLabel} taxes`}
         </p>
+        {selectedFare?.savings?.amount > 0 ? (
+          <p className="price-breakdown">
+            {savingsNote(selectedFare.savings, marketId)}
+          </p>
+        ) : null}
         {fares ? (
           <button
             type="button"
@@ -205,6 +234,11 @@ export default function FlightResultCard({ item, detailsHref }) {
                   <span className="flight-fare-price">
                     {formatMoney(farePrice.total, marketId, farePrice.currency)}
                   </span>
+                  {fare.savings?.amount > 0 ? (
+                    <span className="flight-fare-price">
+                      {savingsNote(fare.savings, marketId)}
+                    </span>
+                  ) : null}
                   <ul className="flight-fare-inclusions">
                     <Inclusion ok>
                       Cabin {fare.cabinKg ?? 7} kg
