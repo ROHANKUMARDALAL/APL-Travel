@@ -22,14 +22,14 @@ export default function HomeFromCms({ activeService }) {
   return (
     <>
       {promos.length ? (
-        <section id="offers" className="py-16 sm:py-20">
+        <section id="offers" className="home-promos">
           <div className="container-page">
             <Reveal variant="up">
               <p className="section-eyebrow">From this website</p>
               <h2 className="section-title">Promotions</h2>
             </Reveal>
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {promos.map((banner) => {
+            <div className="home-promo-grid">
+              {promos.map((banner, index) => {
                 const card = (
                   <>
                     {banner.imageUrl ? (
@@ -37,23 +37,23 @@ export default function HomeFromCms({ activeService }) {
                       <img
                         src={banner.imageUrl}
                         alt=""
-                        className="aspect-[16/10] w-full object-cover"
+                        className="home-promo-image"
+                        loading="lazy"
                       />
                     ) : null}
-                    <div className="p-5">
-                      <h3 className="font-display text-xl font-semibold text-[var(--ink)]">
-                        {banner.title}
-                      </h3>
+                    <div className="home-promo-body">
+                      <h3>{banner.title}</h3>
                     </div>
                   </>
                 );
-                const className = "offer-card block h-full overflow-hidden";
+                const className = "offer-card home-rise block h-full overflow-hidden";
+                const style = { animationDelay: `${index * 70}ms` };
                 return banner.linkUrl ? (
-                  <a key={`${banner.title}-${banner.displayOrder}`} className={className} href={banner.linkUrl}>
+                  <a key={`${banner.title}-${banner.displayOrder}`} className={className} style={style} href={banner.linkUrl}>
                     {card}
                   </a>
                 ) : (
-                  <article key={`${banner.title}-${banner.displayOrder}`} className={className}>
+                  <article key={`${banner.title}-${banner.displayOrder}`} className={className} style={style}>
                     {card}
                   </article>
                 );
@@ -64,29 +64,36 @@ export default function HomeFromCms({ activeService }) {
       ) : null}
 
       {posts.length ? (
-        <section id="notes" className="border-t border-[var(--line)] py-16 sm:py-20">
+        <section id="notes" className="home-journal border-t border-[var(--line)]">
           <div className="container-page">
             <Reveal variant="up">
               <p className="section-eyebrow">Journal</p>
               <h2 className="section-title">Latest posts</h2>
             </Reveal>
-            <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {posts.map((post) => (
-                <li key={post.slug}>
-                  <Link
-                    href={`/blogs/${post.slug}`}
-                    className="block h-full overflow-hidden rounded-xl border border-[var(--line)] bg-white shadow-sm"
-                  >
-                    <BlogCover post={post} />
-                    <span className="block p-5">
-                    <h3 className="text-lg font-semibold text-[var(--ink)]">{post.title}</h3>
-                    {post.shortDescription ? (
-                      <p className="mt-2 text-sm text-[var(--ink-muted)]">{post.shortDescription}</p>
-                    ) : null}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+            <ul className="home-post-grid">
+              {posts.map((post, index) => {
+                const published = post.publishDate ? new Date(post.publishDate) : null;
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const dateLabel = published && !Number.isNaN(published.getTime())
+                  ? `${published.getUTCDate()} ${months[published.getUTCMonth()]} ${published.getUTCFullYear()}`
+                  : "";
+                return (
+                  <li key={post.slug} className="home-rise" style={{ animationDelay: `${index * 70}ms` }}>
+                    <Link href={`/blogs/${post.slug}`} className="home-post">
+                      <span className="home-post-media"><BlogCover post={post} /></span>
+                      <span className="home-post-body">
+                        <span className="home-post-meta">
+                          <span>Journal</span>
+                          {dateLabel ? <time dateTime={post.publishDate}>{dateLabel}</time> : null}
+                        </span>
+                        <h3>{post.title}</h3>
+                        {post.shortDescription ? <p>{post.shortDescription}</p> : null}
+                        <span className="home-post-more">Read more</span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </section>

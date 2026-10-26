@@ -13,6 +13,8 @@ import { CheckoutPricePanel, FinalReview } from "@/components/checkout/FinalRevi
 import {
   buildResultsReturnHref,
   calcBookingTotals,
+  roundTripReturnAmount,
+  withReturnFare,
   findResultById,
   loadBookingDraft,
   nightsFromSearch,
@@ -27,8 +29,9 @@ import {
 } from "@/lib/fareSelection";
 import {
   calcCheckoutPayable,
-  getWalletBalance,
 } from "@/lib/checkoutPricing";
+import { loadWallet } from "@/lib/wallet";
+import { apiPost } from "@/lib/api/client";
 import { simulateMockPayment, validateCardFields } from "@/lib/mockPayment";
 import { bookFlightStay, bookHotelStay, bookBusStay, bookTransferStay } from "@/lib/api/booking";
 import { applySavedTraveller, fetchSavedTravellers } from "@/lib/api/travellers";
@@ -69,6 +72,7 @@ export default function CheckoutPageClient() {
   const [usedCodes, setUsedCodes] = useState([]);
   const [walletApplied, setWalletApplied] = useState(0);
   const [method, setMethod] = useState("upi");
+  const [customerWallet, setCustomerWallet] = useState(0);
   const [card, setCard] = useState({
     number: "",
     expiry: "",
@@ -129,16 +133,23 @@ export default function CheckoutPageClient() {
           const selectedExtras = extrasCatalog.filter((extra) =>
             (next.extras || []).includes(extra.id),
           );
-          const totals = calcBookingTotals({
-            service: "flight",
-            item: priced || catalogItem,
-            room,
-            selectedExtras,
-            nights,
+          const totals = withReturnFare(
+            calcBookingTotals({
+              service: "flight",
+              item: priced || catalogItem,
+              room,
+              selectedExtras,
+              nights,
+              marketId,
+              seatCount: 1,
+              discount: 0,
+            }),
+            roundTripReturnAmount(
+              next.apiBooking?.returnOffer,
+              priced?.paxCount || catalogItem.paxCount || 1,
+            ),
             marketId,
-            seatCount: 1,
-            discount: 0,
-          });
+          );
           next = {
             ...next,
             selectedFareId: fareSnap?.id || fareId || next.selectedFareId || null,
@@ -193,7 +204,7 @@ export default function CheckoutPageClient() {
       if (picker.kind === "flight") {
         next = {
           ...prev,
-          travellers: (prev.travellers || []).map((person, index) =>
+          travellers: (Array.isArray(prev.travellers) ? prev.travellers : []).map((person, index) =>
             index === picker.index ? applySavedTraveller(person, saved) : person,
           ),
         };
@@ -256,7 +267,7 @@ export default function CheckoutPageClient() {
       ? withSelectedFare(catalogItem, fareId) || catalogItem
       : catalogItem;
   const nights = nightsFromSearch(draft?.searchQuery);
-  const walletBalance = getWalletBalance(marketId);
+  const walletBalance = customerWallet;
 
   const payable = useMemo(() => {
     if (!draft || !service) {
@@ -276,8 +287,9 @@ export default function CheckoutPageClient() {
       walletApplied,
       marketId,
       ssrAmount: draft.flightAddOns?.amount || 0,
+      paymentMethod: method,
     });
-  }, [draft, service, nights, promo, walletApplied, marketId]);
+  }, [draft, service, nights, promo, walletApplied, marketId, method]);
 
   const maxWallet = Math.min(
     walletBalance,
@@ -290,6 +302,34 @@ export default function CheckoutPageClient() {
   useEffect(() => {
     if (walletApplied > maxWallet) setWalletApplied(maxWallet);
   }, [walletApplied, maxWallet]);
+
+  useEffect(() => {
+    let ignore = false;
+    loadWallet(marketId)
+      .then((wallet) => {
+        if (!ignore) setCustomerWallet(Number(wallet.balance) || 0);
+      })
+      .catch(() => {
+        if (!ignore) setCustomerWallet(0);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [marketId]);
+
+  useEffect(() => {
+    const amount = Math.max(0, payable.totalPayable - payable.paymentFee);
+    if (!amount) return undefined;
+    const timer = setTimeout(() => {
+      apiPost("/bookings/payment-fee", {
+        method,
+        amount,
+        currency: payable.currency,
+        service,
+      }).catch(() => {});
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [method, payable.totalPayable, payable.paymentFee, payable.currency, service]);
 
   if (!ready) {
     return (
@@ -338,7 +378,7 @@ export default function CheckoutPageClient() {
     const next = {};
     if (service === "hotel") {
       if (!isValidAge(draft?.travellers?.lead?.age)) next.leadAge = "Enter age";
-      (draft?.travellers?.additional || []).forEach((guest) => {
+      (Array.isArray(draft?.travellers?.additional) ? draft.travellers.additional : []).forEach((guest) => {
         if (!isValidAge(guest.age)) next[`addAge-${guest.id}`] = "Enter age";
       });
     }
@@ -349,6 +389,9 @@ export default function CheckoutPageClient() {
     }
     if (method === "card") {
       Object.assign(next, validateCardFields(card));
+    }
+    if (method === "wallet" && customerWallet < payable.totalPayable) {
+      next.wallet = "Customer wallet balance is not enough for this payment";
     }
     if (!accepted.terms || !accepted.cancellation || !accepted.privacy) {
       next.legal = "Please accept the required policies to continue";
@@ -425,8 +468,15 @@ export default function CheckoutPageClient() {
         (service === "flight" || service === "hotel" || service === "bus" || service === "transfer") &&
         signedInAccount;
       if (draft.apiBooking || signedInTrip) {
-        const lead = draft.travellers?.lead || {};
-        const extraGuests = (draft.travellers?.additional || [])
+        const hotelPeople = Array.isArray(draft.travellers)
+          ? draft.travellers
+          : [
+              draft.travellers?.lead,
+              ...(Array.isArray(draft.travellers?.additional) ? draft.travellers.additional : []),
+              ...(draft.travellers?.firstName ? [draft.travellers] : []),
+            ].filter(Boolean);
+        const lead = hotelPeople[0] || {};
+        const extraGuests = hotelPeople.slice(1)
           .filter((guest) => guest.firstName?.trim() && guest.lastName?.trim())
           .map((guest) => ({
             type: "ADULT",
@@ -435,15 +485,26 @@ export default function CheckoutPageClient() {
             lastName: guest.lastName.trim(),
           }));
         const cardNumber = String(card.number || "").replace(/\D/g, "");
-        const payment =
-          method === "card"
-            ? {
-                method: "CARD",
-                cardNumber: forceFail ? `${cardNumber.slice(0, -4)}0000` : cardNumber,
-              }
-            : method === "upi"
-              ? { method: "UPI" }
-              : { method: "NETBANKING" };
+        const paymentMethod = method === "card"
+          ? "CARD"
+          : method === "upi"
+            ? "UPI"
+            : method === "wallet"
+              ? "WALLET"
+              : "NETBANKING";
+        const payment = method === "netbanking" && forceFail
+          ? { method: "FORCE_FAIL" }
+          : {
+              method: paymentMethod,
+              amount: payable.totalPayable,
+              feeAmount: payable.paymentFee,
+              ...(method === "card"
+                ? { cardNumber: forceFail ? `${cardNumber.slice(0, -4)}0000` : cardNumber }
+                : {}),
+              ...(method === "upi"
+                ? { upiId: forceFail ? "fail@aplmock" : "traveller@aplmock" }
+                : {}),
+            };
         const accountBooking =
           draft.apiBooking?.kind
             ? draft.apiBooking
@@ -481,7 +542,7 @@ export default function CheckoutPageClient() {
                         aplTransferId: item.id,
                         aplOfferId: item.aplOfferId || null,
                         quote: item.quote,
-                        flightNumber: draft.transferNotes?.flightNumber || null,
+                        pickupPoint: draft.pickupPoint || null,
                         pickupInstructions: draft.transferNotes?.pickupInstructions || null,
                       }
                     : null;
@@ -499,7 +560,7 @@ export default function CheckoutPageClient() {
         const isBus = accountBooking?.kind === "bus" || Boolean(accountBooking?.aplBusId);
         const isTransfer =
           accountBooking?.kind === "transfer" || Boolean(accountBooking?.aplTransferId);
-        const flightTravellers = (draft.travellers || []).map((person) => ({
+        const flightTravellers = (Array.isArray(draft.travellers) ? draft.travellers : []).map((person) => ({
           type: String(person.type || "adult").toUpperCase(),
           title: person.title || "Mr",
           firstName: person.firstName?.trim(),
@@ -570,8 +631,7 @@ export default function CheckoutPageClient() {
                 contact: draft.contact,
                 travellers: Array.isArray(draft.travellers) ? draft.travellers : [],
                 payment,
-                flightNumber:
-                  accountBooking?.flightNumber || draft.transferNotes?.flightNumber || null,
+                pickupPoint: accountBooking?.pickupPoint || draft.pickupPoint || null,
                 pickupInstructions:
                   accountBooking?.pickupInstructions ||
                   draft.transferNotes?.pickupInstructions ||
@@ -601,8 +661,12 @@ export default function CheckoutPageClient() {
           travellers: draft.travellers,
           contact: draft.contact,
           extras: draft.extras || [],
+          addOns: draft.flightAddOns || undefined,
+          supplierPnr: booked.supplierBookingRef || booked.items?.[0]?.supplierBookingRef || null,
+          returnPnr: booked.items?.[1]?.supplierBookingRef || null,
           selectedRoomId: draft.selectedRoomId || null,
           selectedSeat: draft.selectedSeat || null,
+          pickupPoint: draft.pickupPoint || null,
           selectedFareId: draft.selectedFareId || fareId || null,
           selectedFare: draft.selectedFare || selectedFareSnapshot(catalogItem, fareId),
           payable,
@@ -619,6 +683,13 @@ export default function CheckoutPageClient() {
         });
         clearBookingDraft();
         router.push(`/booking-confirmation?ref=${encodeURIComponent(reference)}`);
+        return;
+      }
+
+      if (service === "flight") {
+        setPayError("Sign in to book this flight. A ticket is created only after the booking service confirms it.");
+        setProcessing(false);
+        payingRef.current = false;
         return;
       }
 

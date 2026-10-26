@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { getActiveMarketId } from "@/data/markets";
 import { formatDuration, formatPriceParts } from "@/lib/resultsHelpers";
 
-export default function BusResultCard({ item, detailsHref }) {
+export default function BusResultCard({ item, onSelect }) {
   const price = formatPriceParts(item, getActiveMarketId());
 
   return (
@@ -49,9 +48,9 @@ export default function BusResultCard({ item, detailsHref }) {
           {price.baseLabel} + {price.taxesLabel} taxes
         </p>
         <p className="price-fee-note">Booking fees may apply at checkout</p>
-        <Link className="btn-primary result-card-cta" href={detailsHref}>
+        <button type="button" className="btn-primary result-card-cta" onClick={() => onSelect?.(item)}>
           Select
-        </Link>
+        </button>
       </div>
     </article>
   );

@@ -71,15 +71,18 @@ export default function BookingSummaryCard({
       ["Date", formatShortDate(query.date, marketId)],
       ["Time", query.time || item.pickupDateTime?.slice(11, 16) || "—"],
       ["Vehicle", item.vehicleName || item.vehicleCategory],
+      ["Pickup point", draft.pickupPoint?.name || "—"],
       ["Capacity", `Up to ${item.maxPassengers} · ${item.maxLuggage} bags`],
       ["Passengers", String(Array.isArray(draft.travellers) ? draft.travellers.length : query.passengers || 1)],
     ];
   } else {
-    title = `${item.from.city} → ${item.to.city}`;
+    title = item?.from?.city && item?.to?.city ? `${item.from.city} → ${item.to.city}` : "Bus";
     rows = [
       ["Date", formatShortDate(query.date, marketId)],
       ["Operator", item.operator],
       ["Seats", formatSelectedSeats(draft.selectedSeat) || "Not selected"],
+      ["Boarding", draft.boardingPoint?.name || "Not selected"],
+      ["Dropping", draft.droppingPoint?.name || "Not selected"],
       ["Bus type", item.busType],
       ["Passengers", String(Array.isArray(draft.travellers) ? draft.travellers.length : draft.selectedSeat ? 1 : 0)],
     ];
@@ -222,7 +225,7 @@ export function TravellerReview({
         </div>
       ) : (
         <ul className="checkout-review-list">
-          {(draft.travellers || []).map((person, index) => {
+          {(Array.isArray(draft.travellers) ? draft.travellers : []).map((person, index) => {
             const name = [person.title, person.firstName, person.lastName].filter(Boolean).join(" ");
             return <li key={person.id || index}>Traveller {index + 1}: {name || "Incomplete"}</li>;
           })}
@@ -231,7 +234,7 @@ export function TravellerReview({
 
       {service === "flight" && onChooseTraveller ? (
         <div className="checkout-traveller-actions">
-          {(draft.travellers || []).map((person, index) => (
+          {(Array.isArray(draft.travellers) ? draft.travellers : []).map((person, index) => (
             <button
               key={person.id || index}
               type="button"

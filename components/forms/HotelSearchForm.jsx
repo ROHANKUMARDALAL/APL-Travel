@@ -83,6 +83,8 @@ export default function HotelSearchForm({ onSearchChange, initialValues }) {
         label="Check-in"
         value={checkIn}
         minDate={today()}
+        rangeStart={checkIn}
+        rangeEnd={checkOut}
         onChange={handleCheckInChange}
       />
 
@@ -91,6 +93,8 @@ export default function HotelSearchForm({ onSearchChange, initialValues }) {
         label="Check-out"
         value={checkOut}
         minDate={addDays(checkIn, 1)}
+        rangeStart={checkIn}
+        rangeEnd={checkOut}
         onChange={handleCheckOutChange}
       />
 

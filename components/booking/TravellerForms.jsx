@@ -492,6 +492,7 @@ export function BusPassengerForm({
 
 export function TransferPassengerForm({
   passengers,
+  maxPassengers,
   onChangePassenger,
   contact,
   onChangeContact,
@@ -503,10 +504,12 @@ export function TransferPassengerForm({
   const people = passengers?.length ? passengers : [];
   return (
     <section className="booking-section" id="traveller">
-      <h2 className="booking-section-title">Passenger information</h2>
+      <h2 className="booking-section-title">Passenger and contact details</h2>
       <p className="booking-section-copy">
-        Add names for everyone travelling in the vehicle. Age is required for each passenger.
+        {people.length} passenger{people.length === 1 ? "" : "s"}
+        {maxPassengers ? ` · this cab seats ${maxPassengers}` : ""}. Names and ages are required.
       </p>
+      {errors.passengers ? <p className="field-error">{errors.passengers}</p> : null}
       {people.map((passenger, index) => (
         <div key={passenger.id || index} className="guest-block">
           <h3 className="guest-block-title">
@@ -558,24 +561,33 @@ export function TransferPassengerForm({
         </div>
       ))}
 
-      <h3 className="booking-subsection-title">Transfer notes (optional)</h3>
+      <h3 className="booking-subsection-title">Pickup details</h3>
       <p className="booking-section-copy">
-        Flight number and pickup instructions help the driver. They are optional for mock bookings.
+        Add a contact and any instructions for the driver at the selected pickup point.
       </p>
       <div className="booking-form-grid">
         <div className="search-field">
-          <label className="field-label" htmlFor="xfer-flight-number">
-            Flight number
-          </label>
-          <input
-            id="xfer-flight-number"
+          <label className="field-label" htmlFor="xfer-country">Country code</label>
+          <select
+            id="xfer-country"
             className="field-input"
-            value={transferNotes?.flightNumber || ""}
-            onChange={(event) =>
-              onChangeNotes?.({ ...transferNotes, flightNumber: event.target.value })
-            }
-            placeholder="AI101"
-            autoComplete="off"
+            value={contact?.countryCode || "+91"}
+            onChange={(event) => onChangeContact?.({ ...contact, countryCode: event.target.value })}
+          >
+            <option value="+91">+91 India</option>
+            <option value="+1">+1</option>
+            <option value="+971">+971</option>
+            <option value="+44">+44</option>
+          </select>
+        </div>
+        <div className="search-field">
+          <label className="field-label" htmlFor="xfer-pickup-contact">Pickup contact</label>
+          <input
+            id="xfer-pickup-contact"
+            className="field-input"
+            value={contact?.pickupContact || ""}
+            onChange={(event) => onChangeContact?.({ ...contact, pickupContact: event.target.value })}
+            placeholder="Person meeting the cab"
           />
         </div>
         <div className="search-field">

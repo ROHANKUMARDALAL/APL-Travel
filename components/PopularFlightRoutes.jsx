@@ -16,7 +16,7 @@ const SECTIONS = {
     icon: "✈",
     title: "Popular Flight Routes",
     copy: "Discover popular destinations and find your next flight in one click.",
-    action: "Explore Flights",
+    action: "Search Flights",
     search: buildPopularFlightSearch,
   },
   hotel: {
@@ -162,12 +162,14 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
       onFocus={() => { pausedRef.current = true; }}
       onBlur={() => { pausedRef.current = false; }}
     >
-      <p className="popular-routes-kicker">
-        <span aria-hidden="true">{section.section.icon}</span>
-        {section.section.kicker}
-      </p>
-      <h2 className="popular-routes-title">{section.section.title}</h2>
-      <p className="popular-routes-copy">{section.section.copy}</p>
+      <div className="home-rise">
+        <p className="popular-routes-kicker">
+          <span aria-hidden="true">{section.section.icon}</span>
+          {section.section.kicker}
+        </p>
+        <h2 className="popular-routes-title">{section.section.title}</h2>
+        <p className="popular-routes-copy">{section.section.copy}</p>
+      </div>
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       <div
         ref={scrollerRef}
@@ -193,7 +195,8 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
             <button
               key={`${route.id}-${index}`}
               type="button"
-              className="route-card"
+              className="route-card home-rise"
+              style={{ animationDelay: `${Math.min(index, 7) * 70}ms` }}
               disabled={Boolean(pendingId)}
               aria-hidden={duplicate || undefined}
               tabIndex={duplicate ? -1 : undefined}
@@ -207,6 +210,7 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
                     src={route.imageUrl}
                     alt=""
                     className="route-card-image"
+                    loading="lazy"
                     onError={() => setBrokenImages((current) => ({ ...current, [route.id]: true }))}
                   />
                 ) : (

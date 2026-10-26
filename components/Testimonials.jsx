@@ -1,62 +1,58 @@
 "use client";
 
-import Reveal, { revealVariant } from "@/components/motion/Reveal";
+import Link from "next/link";
 import { useSite } from "@/components/site/SiteProvider";
 
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "C";
+}
+
+export function TestimonialCards({ items }) {
+  return (
+    <ul className="home-story-grid">
+      {items.map((item, index) => (
+        <li key={`${item.customerName}-${index}`} className="home-rise" style={{ animationDelay: `${index * 70}ms` }}>
+          <blockquote className="home-story">
+            <span className="home-story-quote" aria-hidden="true">“</span>
+            <div className="home-story-stars" aria-label={`${item.rating || 5} out of 5 stars`}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <span key={star} className={star <= (item.rating || 5) ? "is-on" : ""}>★</span>
+              ))}
+            </div>
+            <p>{item.message}</p>
+            <footer>
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.imageUrl} alt="" />
+              ) : (
+                <span className="home-story-initials" aria-hidden="true">{initials(item.customerName)}</span>
+              )}
+              <strong>{item.customerName}</strong>
+            </footer>
+          </blockquote>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function Testimonials() {
-  const { testimonials } = useSite();
-  if (!testimonials?.length) return null;
+  const { testimonials, source } = useSite();
+  const items = source === "legacy" ? [] : (testimonials || []).slice(0, 3);
+  if (!items.length) return null;
 
   return (
-    <section id="stories" className="border-t border-[var(--line)] bg-white py-16 sm:py-20">
+    <section id="stories" className="home-stories border-t border-[var(--line)] bg-white" aria-labelledby="customer-stories">
       <div className="container-page">
-        <Reveal variant="up">
-          <p className="section-eyebrow">Traveller stories</p>
-          <h2 className="section-title">Loved by people who book often</h2>
-          <p className="section-copy">
-            Feedback from travellers on this website.
-          </p>
-        </Reveal>
-
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {testimonials.map((item, index) => {
-            const role = [item.designation, item.company].filter(Boolean).join(" · ");
-            return (
-              <Reveal
-                key={`${item.customerName}-${index}`}
-                variant={revealVariant(index + 1)}
-                step={index}
-                className="h-full"
-              >
-                <blockquote className="testimonial-card h-full">
-                  {item.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.imageUrl}
-                      alt=""
-                      className="mb-4 h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : null}
-                  <div
-                    className="mb-4 flex gap-1 text-[var(--accent)]"
-                    aria-label={`${item.rating} stars`}
-                  >
-                    {Array.from({ length: item.rating || 5 }).map((_, starIndex) => (
-                      <span key={starIndex}>★</span>
-                    ))}
-                  </div>
-                  <p className="text-[15px] leading-relaxed text-[var(--ink)]">
-                    &ldquo;{item.message}&rdquo;
-                  </p>
-                  <footer className="mt-5">
-                    <p className="font-semibold text-[var(--ink)]">{item.customerName}</p>
-                    {role ? <p className="text-sm text-[var(--ink-muted)]">{role}</p> : null}
-                  </footer>
-                </blockquote>
-              </Reveal>
-            );
-          })}
+        <div className="home-story-head home-rise">
+          <div>
+            <p className="section-eyebrow">Testimonials</p>
+            <h2 id="customer-stories" className="section-title">What Our Customers Say</h2>
+          </div>
+          <Link className="home-view-all" href="/testimonials">View All Testimonials</Link>
         </div>
+        <TestimonialCards items={items} />
       </div>
     </section>
   );

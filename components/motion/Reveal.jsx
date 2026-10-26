@@ -15,16 +15,15 @@ export default function Reveal({ variant = "up", step = 0, className = "", child
   useLayoutEffect(() => {
     const node = ref.current;
     if (!node) return undefined;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setShown(true);
-      return undefined;
-    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setShown(entry.isIntersecting);
+        if (!entry.isIntersecting) return;
+        setShown(true);
+        observer.disconnect();
       },
-      { threshold: 0.22, rootMargin: "0px 0px -6% 0px" },
+      { threshold: 0.16, rootMargin: "0px 0px -4% 0px" },
     );
     observer.observe(node);
     return () => observer.disconnect();

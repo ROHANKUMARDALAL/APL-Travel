@@ -10,6 +10,7 @@ import SortBar from "@/components/results/SortBar";
 import FlightResultCard from "@/components/results/FlightResultCard";
 import HotelResultCard from "@/components/results/HotelResultCard";
 import BusResultCard from "@/components/results/BusResultCard";
+import BusPointsModal from "@/components/results/BusPointsModal";
 import TransferResultCard from "@/components/results/TransferResultCard";
 import {
   ResultsEmpty,
@@ -21,6 +22,8 @@ import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
 import TransferSearchForm from "@/components/forms/TransferSearchForm";
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode } from "@/data/markets";
+import { flightBadges, hasCheckedBag } from "@/lib/flightResultMarks.mjs";
+import { saveBusPoints } from "@/lib/busPoints";
 import {
   buildBusSummary,
   buildTransferSummary,
@@ -61,7 +64,7 @@ const SORT_OPTIONS = {
     { id: "recommended", label: "Recommended" },
     { id: "cheapest", label: "Cheapest" },
     { id: "fastest", label: "Fastest" },
-    { id: "departure", label: "Departure time" },
+    { id: "departure", label: "Earliest" },
   ],
   hotel: [
     { id: "recommended", label: "Recommended" },
@@ -89,6 +92,7 @@ function defaultFilters(service) {
       airlines: [],
       departBuckets: [],
       arriveBuckets: [],
+      checkedBag: false,
       maxPrice: null,
       minPrice: null,
     };
@@ -106,7 +110,12 @@ function defaultFilters(service) {
   if (service === "transfer") {
     return {
       maxPrice: null,
+      minPrice: null,
       vehicleCategories: [],
+      models: [],
+      fuelTypes: [],
+      ac: [],
+      seats: [],
     };
   }
   return {
@@ -153,6 +162,7 @@ function queryObjectFromParams(service, searchParams) {
     const parsed = parseTransferSearchParams(searchParams);
     return {
       service: "transfer",
+      tripType: parsed.tripType,
       pickup: parsed.pickup,
       dropoff: parsed.dropoff,
       pickupKind: parsed.pickupKind,
@@ -215,6 +225,7 @@ export default function ResultsPage({ service }) {
     if (service === "transfer") {
       const parsed = parseTransferSearchParams(searchParams);
       return {
+        tripType: parsed.tripType,
         pickup: parsed.pickup,
         dropoff: parsed.dropoff,
         pickupKind: parsed.pickupKind,
@@ -255,6 +266,7 @@ export default function ResultsPage({ service }) {
   const [sort, setSort] = useState("recommended");
   const [filters, setFilters] = useState(() => defaultFilters(service));
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [busPointsItem, setBusPointsItem] = useState(null);
   const [modifyOpen, setModifyOpen] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [modifyPayload, setModifyPayload] = useState(null);
@@ -300,6 +312,7 @@ export default function ResultsPage({ service }) {
             adults: parsed.adults,
             children: parsed.children,
             infants: parsed.infants,
+            cabinClass: parsed.cabinClass || "ECONOMY",
           });
         } else if (service === "hotel") {
           const parsed = parseHotelSearchParams(searchParams);
@@ -337,6 +350,7 @@ export default function ResultsPage({ service }) {
             throw new Error("Choose a pickup date.");
           }
           items = await searchTransfers({
+            tripType: parsed.tripType,
             pickup: parsed.pickup,
             dropoff: parsed.dropoff,
             pickupKind: parsed.pickupKind,
@@ -374,7 +388,7 @@ export default function ResultsPage({ service }) {
     return () => {
       cancelled = true;
     };
-  }, [service, searchParams, retryToken]);
+  }, [service, searchKey, retryToken]);
 
   const meta = useMemo(() => {
     const totals = rawItems
@@ -388,13 +402,27 @@ export default function ResultsPage({ service }) {
 
     if (service === "flight") {
       const durations = rawItems.map((item) => item.durationMinutes).filter((n) => Number.isFinite(n));
+      const priced = rawItems.map((item) => ({ item, total: getPriceParts(item, marketId).total }));
+      const fromPrice = (list) => (list.length ? Math.min(...list.map((row) => row.total)) : null);
+      const airlineNames = [...new Set(rawItems.map((item) => item.airline))];
       return {
         currency: displayCurrency,
         priceMin,
         priceMax,
         durationMin: durations.length ? Math.min(...durations) : 0,
         durationMax: durations.length ? Math.max(...durations) : 0,
-        airlines: [...new Set(rawItems.map((item) => item.airline))],
+        airlines: airlineNames,
+        airlineStats: airlineNames.map((name) => ({
+          id: name,
+          label: name,
+          count: rawItems.filter((item) => item.airline === name).length,
+        })),
+        stopStats: [
+          { id: "any", label: "Any", count: rawItems.length, from: fromPrice(priced) },
+          { id: "0", label: "Direct only", count: rawItems.filter((item) => item.stops === 0).length, from: fromPrice(priced.filter((row) => row.item.stops === 0)) },
+          { id: "1", label: "1 stop max", count: rawItems.filter((item) => item.stops <= 1).length, from: fromPrice(priced.filter((row) => row.item.stops <= 1)) },
+        ].filter((option) => option.id === "any" || option.count > 0),
+        showCheckedBag: rawItems.some((item) => hasCheckedBag(item)),
         departBuckets: TIME_BUCKETS.filter((b) =>
           rawItems.some((item) => item.departBucket === b.id),
         ),
@@ -427,6 +455,10 @@ export default function ResultsPage({ service }) {
         priceMin,
         priceMax,
         vehicleCategories: [...new Set(rawItems.map((item) => item.vehicleCategory).filter(Boolean))],
+        models: [...new Set(rawItems.map((item) => item.vehicleName).filter(Boolean))],
+        fuelTypes: [...new Set(rawItems.map((item) => item.fuelType).filter(Boolean))],
+        acOptions: [...new Set(rawItems.map((item) => (item.airConditioned == null ? "" : item.airConditioned ? "AC" : "Non-AC")).filter(Boolean))],
+        seats: [...new Set(rawItems.map((item) => item.maxPassengers).filter(Boolean))].sort((a, b) => a - b),
         formatPrice: (n) => formatMoney(n, marketId),
         formatDuration,
       };
@@ -473,6 +505,27 @@ export default function ResultsPage({ service }) {
     return list;
   }, [rawItems, filters, sort, service, marketId]);
 
+  const flightBadgeMap = useMemo(() => {
+    if (service !== "flight") return new Map();
+    const groups = new Map();
+    rawItems.forEach((item) => {
+      const key = item.legIndex ?? "all";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({
+        id: item.id,
+        total: getPriceParts(item, marketId).total,
+        duration: item.totalDurationMinutes || item.durationMinutes || 0,
+        stops: Number(item.stops) || 0,
+        rank: Number(item.recommendedRank) || 0,
+      });
+    });
+    const marks = new Map();
+    groups.forEach((group) => {
+      flightBadges(group).forEach((badges, id) => marks.set(id, badges));
+    });
+    return marks;
+  }, [rawItems, service, marketId]);
+
   const nights = nightsBetween(searchQuery.checkIn, searchQuery.checkOut);
   const homeHref = buildHomeSearchHref(service, searchQuery);
 
@@ -497,6 +550,7 @@ export default function ResultsPage({ service }) {
         <div className="container-page results-page-inner">
           <BookingProgress current="results" backHref={homeHref} />
           <SearchSummary
+            className={service === "flight" ? "is-flight-bar" : ""}
             title={summary.title}
             primary={summary.primary}
             secondary={summary.secondary}
@@ -561,8 +615,10 @@ export default function ResultsPage({ service }) {
             <div className="results-main">
               <SortBar
                 count={status === "ready" ? visibleItems.length : 0}
+                countLabel={service === "flight" ? "flight option" : "result"}
                 sort={sort}
                 options={SORT_OPTIONS[service]}
+                pills={service === "flight"}
                 onSortChange={setSort}
                 onOpenFilters={() => setFiltersOpen(true)}
                 extra={
@@ -624,7 +680,7 @@ export default function ResultsPage({ service }) {
                       return (
                         <div key={item.id} className="flight-result-block">
                           {showLeg ? <h3 className="flight-leg-section">{item.legLabel}</h3> : null}
-                          <FlightResultCard item={item} detailsHref={detailsHref} />
+                          <FlightResultCard item={item} detailsHref={detailsHref} badges={flightBadgeMap.get(item.id) || []} />
                         </div>
                       );
                     }
@@ -651,7 +707,7 @@ export default function ResultsPage({ service }) {
                       <BusResultCard
                         key={item.id}
                         item={item}
-                        detailsHref={detailsHref}
+                        onSelect={setBusPointsItem}
                       />
                     );
                   })}
@@ -661,6 +717,24 @@ export default function ResultsPage({ service }) {
           </div>
         </div>
       </div>
+      {service === "bus" ? (
+        <BusPointsModal
+          open={Boolean(busPointsItem)}
+          item={busPointsItem}
+          searchQuery={searchQuery}
+          onClose={() => setBusPointsItem(null)}
+          onContinue={(selection) => {
+            saveBusPoints(busPointsItem.searchId, busPointsItem.id, selection);
+            const href = buildDetailsHref("bus", busPointsItem.id, searchQuery);
+            const params = new URLSearchParams({
+              boarding: selection.boarding.code,
+              dropping: selection.dropping.code,
+            });
+            setBusPointsItem(null);
+            router.push(`${href}&${params.toString()}`);
+          }}
+        />
+      ) : null}
     </SiteChrome>
   );
 }

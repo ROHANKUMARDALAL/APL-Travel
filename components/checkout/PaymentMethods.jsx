@@ -3,10 +3,10 @@
 import { formatCardNumber, formatExpiry } from "@/lib/mockPayment";
 
 const METHODS = [
-  { id: "upi", label: "UPI", hint: "Pay via any UPI app" },
-  { id: "card", label: "Cards", hint: "Debit / credit cards" },
-  { id: "netbanking", label: "Net Banking", hint: "All major banks" },
-  { id: "paypal", label: "PayPal", hint: "Wallet checkout" },
+  { id: "upi", label: "UPI", hint: "No payment fee" },
+  { id: "card", label: "Credit / Debit Card", hint: "2.5% payment fee" },
+  { id: "netbanking", label: "Net Banking", hint: "3% payment fee" },
+  { id: "wallet", label: "Customer wallet", hint: "No payment fee" },
 ];
 
 export default function PaymentMethods({
@@ -114,8 +114,9 @@ export default function PaymentMethods({
         </div>
       ) : (
         <p className="pay-method-alt-note">
-          {METHODS.find((m) => m.id === method)?.label} opens a secure mock approval
-          flow — no external provider is contacted in this demo.
+          {method === "wallet"
+            ? "Pays from your customer wallet on this website. Agency wallets are not used. This is a simulated APL_MOCK_PAY charge."
+            : `${METHODS.find((m) => m.id === method)?.label} uses a simulated APL_MOCK_PAY approval. No live gateway is contacted.`}
         </p>
       )}
 

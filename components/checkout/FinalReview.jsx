@@ -42,8 +42,17 @@ export function FinalReview({
   } else if (service === "hotel") {
     bookingLine = item.name;
     dateLine = `${formatShortDate(query.checkIn, marketId)} → ${formatShortDate(query.checkOut, marketId)}`;
+  } else if (service === "transfer") {
+    const from = item?.pickup?.name || query.pickup || "Pickup";
+    const to = item?.dropoff?.name || query.dropoff || "Drop-off";
+    const point = draft.pickupPoint?.name || item?.pickupPoint?.name || "";
+    bookingLine = `${item?.vehicleName || item?.vehicleCategory || "Cab"} · ${from} → ${to}`;
+    dateLine = [formatShortDate(query.date, marketId), query.time, point].filter(Boolean).join(" · ");
+  } else if (item?.from?.city && item?.to?.city) {
+    bookingLine = `${item.operator || "Bus"} · ${item.from.city} → ${item.to.city}`;
+    dateLine = formatShortDate(query.date, marketId);
   } else {
-    bookingLine = `${item.operator} · ${item.from.city} → ${item.to.city}`;
+    bookingLine = item?.title || item?.vehicleName || "Booking";
     dateLine = formatShortDate(query.date, marketId);
   }
 
@@ -77,6 +86,11 @@ export function FinalReview({
   return (
     <section className="checkout-section">
       <h2 className="checkout-section-title">You are about to pay</h2>
+      {service === "flight" ? (
+        <p className="checkout-note">
+          TEST / MOCK BOOKING. The ticket is issued only after the booking service confirms payment and the supplier reference. It is not a valid airline ticket.
+        </p>
+      ) : null}
       <dl className="checkout-fact-list">
         <div>
           <dt>Service</dt>
@@ -186,9 +200,15 @@ export function CheckoutPricePanel({
         <dt>Taxes &amp; fees</dt>
         <dd>{payable.taxesLabel}</dd>
       </div>
+      {payable.serviceFee > 0 ? (
+        <div>
+          <dt>Service fee</dt>
+          <dd>{payable.serviceFeeLabel}</dd>
+        </div>
+      ) : null}
       <div>
-        <dt>Convenience fee</dt>
-        <dd>{payable.serviceFeeLabel}</dd>
+        <dt>Payment fee ({payable.paymentMethod || "UPI"})</dt>
+        <dd>{payable.paymentFeeLabel}</dd>
       </div>
       {payable.extras > 0 ? (
         <div>
@@ -258,8 +278,9 @@ export function CheckoutPricePanel({
             <div className="pay-quick-row">
               {[
                 { id: "upi", label: "UPI" },
-                { id: "card", label: "Cards" },
+                { id: "card", label: "Card" },
                 { id: "netbanking", label: "Net Banking" },
+                { id: "wallet", label: "Wallet" },
               ].map((item) => (
                 <button
                   key={item.id}

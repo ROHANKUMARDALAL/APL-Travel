@@ -1,12 +1,27 @@
 import { storyFor } from "@/data/catalogDetails";
 import { formatOfferPrice } from "@/data/markets";
 
-export const SERVICES = [
-  { id: "flight", label: "Flight", icon: "plane" },
-  { id: "hotel", label: "Hotel", icon: "hotel" },
-  { id: "bus", label: "Bus", icon: "bus" },
-  { id: "transfer", label: "Transfer", icon: "transfer" },
+export const SERVICE_ALIASES = {
+  cab: "transfer",
+  taxi: "transfer",
+  transfers: "transfer",
+  holidays: "holiday",
+  insiurance: "insurance",
+};
+
+export const SERVICE_CATALOGUE = [
+  { id: "flight", label: "Flight", icon: "plane", kind: "search", href: "/?service=flight" },
+  { id: "hotel", label: "Hotel", icon: "hotel", kind: "search", href: "/?service=hotel" },
+  { id: "bus", label: "Bus", icon: "bus", kind: "search", href: "/?service=bus" },
+  { id: "transfer", label: "Transfer (Cab)", icon: "transfer", kind: "search", href: "/?service=transfer" },
+  { id: "visa", label: "Visa", icon: "visa", kind: "page", href: "/visa" },
+  { id: "recharge", label: "Recharge", icon: "recharge", kind: "page", href: "/recharge" },
+  { id: "holiday", label: "Holidays", icon: "holiday", kind: "page", href: "/holidays" },
+  { id: "insurance", label: "Insurance", icon: "insurance", kind: "page", href: "/insurance" },
 ];
+
+/** Search tabs used when the public config cannot be loaded. */
+export const SERVICES = SERVICE_CATALOGUE.filter((service) => service.kind === "search");
 
 /** Raw offer amounts by currency — UI formats via market helpers (display currency ≠ destination). */
 export const OFFERS_RAW = {

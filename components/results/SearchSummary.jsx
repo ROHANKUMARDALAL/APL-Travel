@@ -6,9 +6,10 @@ export default function SearchSummary({
   secondary,
   onModify,
   modifyOpen,
+  className = "",
 }) {
   return (
-    <div className="search-summary">
+    <div className={`search-summary ${className}`.trim()}>
       <div className="search-summary-text">
         <p className="search-summary-eyebrow">{title}</p>
         <h1 className="search-summary-title">{primary}</h1>

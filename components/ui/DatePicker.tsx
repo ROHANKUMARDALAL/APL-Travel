@@ -36,6 +36,13 @@ export type DatePickerProps = {
   minDate?: Date | null;
   maxDate?: Date | null;
   placeholder?: string;
+  /** Shows Clear without changing calendars that omit this prop. */
+  clearable?: boolean;
+  /** Inclusive range highlight. Does not change the selected value. */
+  rangeStart?: Date | null;
+  rangeEnd?: Date | null;
+  compact?: boolean;
+  align?: "start" | "end";
 };
 
 function monthFullyOutsideRange(year: number, month: number, minDate: Date | null, maxDate: Date | null) {
@@ -54,6 +61,11 @@ export default function DatePicker({
   minDate,
   maxDate,
   placeholder = "Select date",
+  clearable = false,
+  rangeStart = null,
+  rangeEnd = null,
+  compact = false,
+  align = "start",
 }: DatePickerProps) {
   const generatedId = useId();
   const fieldId = id || generatedId;
@@ -73,6 +85,25 @@ export default function DatePicker({
   useEffect(() => {
     if (value) setViewDate(startOfDay(value));
   }, [value]);
+
+  useEffect(() => {
+    if (!open || !rootRef.current) return;
+    const popover = rootRef.current.querySelector<HTMLElement>(".calendar-popover");
+    if (!popover) return;
+    popover.style.left = "0px";
+    popover.style.right = "auto";
+    const overflowRight = popover.getBoundingClientRect().right - window.innerWidth;
+    if (overflowRight > -8) {
+      popover.style.left = "auto";
+      popover.style.right = "0px";
+    }
+    const left = popover.getBoundingClientRect().left;
+    if (left < 8) {
+      const rootLeft = rootRef.current.getBoundingClientRect().left;
+      popover.style.left = `${8 - rootLeft}px`;
+      popover.style.right = "auto";
+    }
+  }, [open, yearOpen, monthOpen]);
 
   const minTime = effectiveMin ? effectiveMin.getTime() : null;
   const maxTime = effectiveMax ? effectiveMax.getTime() : null;
@@ -203,7 +234,7 @@ export default function DatePicker({
   const panelOpen = yearOpen || monthOpen;
 
   return (
-    <div className="date-picker" ref={rootRef}>
+    <div className={`date-picker ${compact ? "is-compact" : ""} ${align === "end" ? "is-end" : ""}`} ref={rootRef}>
       {label ? (
         <label className="field-label" htmlFor={fieldId}>
           {label}
@@ -362,13 +393,20 @@ export default function DatePicker({
                     (effectiveMax && isBeforeDay(effectiveMax, day));
                   const selected = Boolean(value && isSameDay(day, value));
                   const isToday = isSameDay(day, today());
+                  const inRange = Boolean(
+                    rangeStart &&
+                      rangeEnd &&
+                      !isBeforeDay(day, rangeStart) &&
+                      !isBeforeDay(rangeEnd, day) &&
+                      !selected,
+                  );
 
                   return (
                     <button
                       key={day.toISOString()}
                       type="button"
                       disabled={Boolean(disabled)}
-                      className={`calendar-day ${selected ? "is-selected" : ""} ${isToday ? "is-today" : ""}`}
+                      className={`calendar-day ${selected ? "is-selected" : ""} ${inRange ? "is-in-range" : ""} ${isToday ? "is-today" : ""}`}
                       onClick={() => selectDay(day)}
                     >
                       {day.getDate()}
@@ -391,6 +429,19 @@ export default function DatePicker({
             >
               Today
             </button>
+            {clearable ? (
+              <button
+                type="button"
+                className="calendar-clear-btn"
+                onClick={() => {
+                  onChange(null);
+                  closePanels();
+                  setOpen(false);
+                }}
+              >
+                Clear
+              </button>
+            ) : null}
             <button
               type="button"
               className="calendar-clear-btn"

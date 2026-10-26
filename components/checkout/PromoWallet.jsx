@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 
-export function PromoCodeField({ promo, onApply, onRemove, service = "flight", searchId = "", offerId = "" }) {
+export function PromoCodeField({ promo, onApply, onRemove, service = "flight", searchId = "", offerId = "", passengers = 0 }) {
   const [code, setCode] = useState("");
   const [feedback, setFeedback] = useState(null);
   const [pending, setPending] = useState(false);
@@ -21,6 +21,7 @@ export function PromoCodeField({ promo, onApply, onRemove, service = "flight", s
           serviceCode: service,
           searchId: searchId || undefined,
           offerId: offerId || undefined,
+          passengers: Number(passengers) > 0 ? Number(passengers) : undefined,
         }),
       });
       const payload = await response.json();
@@ -156,7 +157,7 @@ export function WalletCredit({
       <h2 className="checkout-section-title">Travel Wallet</h2>
       <p className="result-card-meta">
         Available credit: <strong>{formatMoney(balance, marketId)}</strong>{" "}
-        (mock balance)
+        (customer wallet)
       </p>
       <label className="wallet-toggle">
         <input

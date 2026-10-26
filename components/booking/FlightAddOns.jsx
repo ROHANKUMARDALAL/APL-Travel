@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
-
-const LETTERS = ["A", "B", "C", "D", "E", "F"];
+import { baggageWeight, buildCabin, isExitSeat, mealDiet, seatAvailability, seatCategory } from "@/lib/ssrLayout.mjs";
 
 function money(amount, currency) {
   return formatMoney(amount, getActiveMarketId(), currency || "INR");
 }
 
-function rowOf(code) {
-  const match = String(code || "").match(/^(\d+)([A-Z])$/i);
-  if (!match) return null;
-  return { row: Number(match[1]), letter: match[2].toUpperCase() };
-}
-
 function emptyChoice() {
   return { seat: null, meal: null, baggage: null };
+}
+
+function itemPayload(item) {
+  return {
+    code: item.code,
+    label: item.label || item.code,
+    price: Number(item.price?.amount) || 0,
+    currency: item.price?.currency || "INR",
+  };
 }
 
 export function selectionsToAddOns(selections) {
@@ -29,7 +31,7 @@ export function selectionsToAddOns(selections) {
       ["seat", "meal", "baggage"].forEach((kind) => {
         const item = choice?.[kind];
         if (!item?.code) return;
-        const row = { code: item.code, passengerKey, segmentKey };
+        const row = { code: item.code, label: item.label || item.code, passengerKey, segmentKey };
         if (kind === "seat") seats.push(row);
         if (kind === "meal") meals.push(row);
         if (kind === "baggage") baggage.push(row);
@@ -50,6 +52,20 @@ export function passengerAddOnTotal(selections, passengerId) {
   return selectionsToAddOns({ [passengerId]: selections?.[passengerId] || {} }).amount;
 }
 
+function moveSeatFocus(event) {
+  const key = event.key;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) return;
+  const buttons = [...event.currentTarget.querySelectorAll("button.ssr-seat:not(:disabled)")];
+  const index = buttons.indexOf(document.activeElement);
+  if (index < 0) return;
+  const columns = Number(event.currentTarget.dataset.columns) || 1;
+  const step = key === "ArrowLeft" ? -1 : key === "ArrowRight" ? 1 : key === "ArrowUp" ? -columns : columns;
+  const next = buttons[index + step];
+  if (!next) return;
+  event.preventDefault();
+  next.focus();
+}
+
 export default function FlightAddOnsModal({
   open,
   passenger,
@@ -57,28 +73,64 @@ export default function FlightAddOnsModal({
   catalog,
   includedBaggage,
   selections,
+  loading = false,
+  error = "",
+  airline = "",
+  passengers = null,
+  onSelectPassenger,
+  basePayable = null,
+  payableCurrency = "INR",
   onClose,
   onChange,
 }) {
   const titleId = useId();
+  const dialogRef = useRef(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
   const [tab, setTab] = useState("seat");
   const [segmentKey, setSegmentKey] = useState(segments[0]?.id || "");
+  const openKey = open ? `${passenger?.id || ""}:${segments[0]?.id || ""}` : "";
+  const [seenKey, setSeenKey] = useState(openKey);
+  if (openKey !== seenKey) {
+    const first = segments[0];
+    const firstTab = (first?.seats || catalog?.seats || []).length
+      ? "seat"
+      : (first?.meals || catalog?.meals || []).length
+        ? "meal"
+        : "baggage";
+    setSeenKey(openKey);
+    setTab(firstTab);
+    setSegmentKey(first?.id || "");
+  }
+  const activeSegment = segments.find((segment) => segment.id === segmentKey) || segments[0];
+  const segmentCatalog = {
+    seats: activeSegment?.seats || catalog?.seats || [],
+    meals: activeSegment?.meals || catalog?.meals || [],
+    baggage: activeSegment?.baggage || catalog?.baggage || [],
+  };
   const availableTabs = [
-    catalog?.seats?.length ? { id: "seat", label: "Seat Selection", icon: "Seat" } : null,
-    catalog?.meals?.length ? { id: "meal", label: "Meal Selection", icon: "Meal" } : null,
-    catalog?.baggage?.length ? { id: "baggage", label: "Extra Baggage", icon: "Bag" } : null,
+    segmentCatalog.seats.length ? { id: "seat", label: "Seats" } : null,
+    segmentCatalog.meals.length ? { id: "meal", label: "Meals" } : null,
+    segmentCatalog.baggage.length ? { id: "baggage", label: "Extra Baggage" } : null,
   ].filter(Boolean);
 
   useEffect(() => {
     if (!open) return undefined;
-    setTab(availableTabs[0]?.id || "seat");
-    setSegmentKey(segments[0]?.id || "");
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const timer = window.setTimeout(() => dialogRef.current?.focus(), 30);
     function onKey(event) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeRef.current();
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, passenger?.id]);
+    return () => {
+      document.body.style.overflow = previous;
+      window.clearTimeout(timer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const choice = selections?.[passenger?.id]?.[segmentKey] || emptyChoice();
   const takenSeats = useMemo(() => {
@@ -90,11 +142,37 @@ export default function FlightAddOnsModal({
     });
     return taken;
   }, [selections, passenger?.id, segmentKey]);
+  const cabin = buildCabin(segmentCatalog.seats);
+  const addonQuote = selectionsToAddOns(selections);
+  const payable = Number.isFinite(Number(basePayable)) ? Number(basePayable) + addonQuote.amount : null;
+  const seatCurrency = segmentCatalog.seats[0]?.price?.currency || "INR";
+  const legend = [];
+  if (segmentCatalog.seats.some((seat) => seatCategory(seat) === "free")) {
+    legend.push({ id: "free", label: "Free", detail: "Included in your fare", klass: "is-free" });
+  }
+  cabin.prices.forEach((price, index) => {
+    const priced = segmentCatalog.seats.filter((seat) => seatCategory(seat) === "paid" && Number(seat.price?.amount) === price);
+    if (!priced.length) return;
+    legend.push({ id: `paid-${price}`, label: "Paid", detail: money(price, seatCurrency), klass: `is-paid is-band-${Math.min(index, 2)}` });
+  });
+  const legroomPrices = cabin.prices.filter((price) => segmentCatalog.seats.some((seat) => seatCategory(seat) === "legroom" && Number(seat.price?.amount) === price));
+  if (legroomPrices.length) {
+    legend.push({
+      id: "legroom",
+      label: "Extra legroom",
+      detail: legroomPrices.map((price) => money(price, seatCurrency)).join(" – "),
+      klass: "is-legroom",
+    });
+  }
+  if (segmentCatalog.seats.some((seat) => seatAvailability(seat, new Set()) !== "available")) {
+    legend.push({ id: "unavailable", label: "Unavailable", detail: "Occupied or blocked", klass: "is-unavailable" });
+  }
+  legend.push({ id: "selected", label: "Selected", detail: choice.seat?.label || "Your seat", klass: "is-selected" });
 
   if (!open || !passenger) return null;
 
   function update(kind, item) {
-    const next = {
+    onChange({
       ...(selections || {}),
       [passenger.id]: {
         ...(selections?.[passenger.id] || {}),
@@ -103,44 +181,44 @@ export default function FlightAddOnsModal({
           [kind]: item,
         },
       },
-    };
-    onChange(next);
+    });
   }
 
-  const activeSegment = segments.find((segment) => segment.id === segmentKey) || segments[0];
   const infant = String(passenger.type || "").toLowerCase() === "infant";
-  const rows = new Map();
-  (catalog?.seats || []).forEach((seat) => {
-    const parsed = rowOf(seat.code);
-    if (!parsed) return;
-    if (!rows.has(parsed.row)) rows.set(parsed.row, new Map());
-    rows.get(parsed.row).set(parsed.letter, seat);
-  });
-  const rowNumbers = [...rows.keys()].sort((a, b) => a - b);
-  const prices = [...new Set((catalog?.seats || []).map((seat) => Number(seat.price?.amount) || 0))].sort((a, b) => a - b);
+  const displayName = passenger.firstName || passenger.lastName
+    ? `${passenger.firstName || ""} ${passenger.lastName || ""}`.trim()
+    : passenger.label;
+  const segmentTotal = (Number(choice.seat?.price) || 0) + (Number(choice.meal?.price) || 0) + (Number(choice.baggage?.price) || 0);
+  const currency = choice.seat?.currency || choice.meal?.currency || choice.baggage?.currency || segmentCatalog.seats[0]?.price?.currency || "INR";
+  const route = activeSegment ? `${activeSegment.from} → ${activeSegment.to}` : "";
+  const flightLabel = [airline || activeSegment?.airline, activeSegment?.flightNumber].filter(Boolean).join(" · ");
+
+  function selectSeat(seat) {
+    const state = seatAvailability(seat, takenSeats);
+    if (state !== "available" && choice.seat?.code !== seat.code) return;
+    const selected = choice.seat?.code === seat.code;
+    update("seat", selected ? null : itemPayload(seat));
+  }
 
   return (
     <div className="ssr-backdrop" role="presentation" onClick={onClose}>
       <div
-        className="ssr-modal"
+        ref={dialogRef}
+        className={`ssr-modal ${tab === "seat" ? "is-wide" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="ssr-header">
           <div>
-            <p className="ssr-kicker">Choose Your Add-ons</p>
+            <p className="ssr-kicker">Add-ons</p>
             <h2 id={titleId}>
-              {passenger.firstName || passenger.lastName
-                ? `${passenger.firstName || ""} ${passenger.lastName || ""}`.trim()
-                : passenger.label}
+              {displayName}
               <span> · {passenger.typeLabel}</span>
             </h2>
-            <p>
-              {activeSegment ? `${activeSegment.from} → ${activeSegment.to}` : "Flight"}
-              {activeSegment?.flightNumber ? ` · ${activeSegment.flightNumber}` : ""}
-            </p>
+            <p>{[flightLabel, route].filter(Boolean).join(" · ") || "Flight"}</p>
           </div>
           <button type="button" className="ssr-close" onClick={onClose} aria-label="Close add-ons">
             ×
@@ -156,22 +234,26 @@ export default function FlightAddOnsModal({
                 role="tab"
                 aria-selected={segment.id === segmentKey}
                 className={segment.id === segmentKey ? "is-active" : ""}
-                onClick={() => setSegmentKey(segment.id)}
+                onClick={() => {
+                  setSegmentKey(segment.id);
+                }}
               >
-                {segments.length === 2 && index === 0 ? "Outbound" : segments.length === 2 && index === 1 ? "Return" : `Leg ${index + 1}`}
+                {`Segment ${index + 1}`}
                 <span>{segment.from}–{segment.to}</span>
               </button>
             ))}
           </div>
         ) : null}
 
-        <div className="ssr-tabs" role="tablist">
+        <div className="ssr-tabs" role="tablist" aria-label="Add-on type">
           {availableTabs.map((item) => (
             <button
               key={item.id}
               type="button"
               role="tab"
+              id={`ssr-tab-${item.id}`}
               aria-selected={tab === item.id}
+              aria-controls={`ssr-panel-${item.id}`}
               className={tab === item.id ? "is-active" : ""}
               onClick={() => setTab(item.id)}
             >
@@ -180,107 +262,172 @@ export default function FlightAddOnsModal({
           ))}
         </div>
 
+        <div className="ssr-stage">
         <div className="ssr-body">
-          {!availableTabs.length ? (
+          {passengers?.length > 1 ? (
+            <div className="ssr-pax" role="listbox" aria-label="Passengers">
+              {passengers.map((person) => {
+                const active = person.id === passenger.id;
+                const seatLabel = selections?.[person.id]?.[segmentKey]?.seat?.label;
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    className={active ? "is-active" : ""}
+                    onClick={() => onSelectPassenger?.(person.id)}
+                  >
+                    <strong>{person.firstName || person.lastName ? `${person.firstName || ""} ${person.lastName || ""}`.trim() : person.label}</strong>
+                    <span>{person.typeLabel}{seatLabel ? ` · ${seatLabel}` : " · Select seat"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {loading ? (
+            <div className="ssr-skeleton" aria-busy="true" aria-live="polite">
+              <span />
+              <span />
+              <span />
+              <p>Loading seats, meals and baggage from the supplier.</p>
+            </div>
+          ) : null}
+          {error ? <p className="ssr-error" role="alert">{error}</p> : null}
+          {!loading && !availableTabs.length ? (
             <p className="ssr-empty">Add-ons are not available from the supplier for this fare.</p>
           ) : null}
 
-          {tab === "seat" && catalog?.seats?.length ? (
+          {!loading && tab === "seat" && segmentCatalog.seats.length ? (
             infant ? (
               <p className="ssr-empty">Seat selection is not available for infants.</p>
             ) : (
-              <div className="ssr-seat-layout">
+              <div className="ssr-panel" id="ssr-panel-seat" role="tabpanel" aria-labelledby="ssr-tab-seat">
                 <div className="ssr-legend">
-                  {prices.map((price) => (
-                    <span key={price}>{money(price, catalog.seats[0]?.price?.currency)} seat</span>
+                  {legend.map((item) => (
+                    <span key={item.id} className={item.klass}>
+                      <strong>{item.label}</strong>
+                      <small>{item.detail}</small>
+                    </span>
                   ))}
-                  <span>Occupied</span>
-                  <span>Not offered</span>
                 </div>
-                <div className="ssr-cabin" aria-label="Seat map">
-                  {rowNumbers.map((row) => (
-                    <div key={row} className="ssr-row">
-                      <span className="ssr-row-no">{row}</span>
-                      {LETTERS.flatMap((letter) => {
-                        const seat = rows.get(row)?.get(letter) || null;
-                        const aisle = letter === "D" ? <span key={`${row}-aisle`} className="ssr-aisle" /> : null;
-                        if (!seat) {
-                          return [aisle, <span key={`${row}${letter}`} className="ssr-seat is-missing" aria-hidden="true" />];
-                        }
-                        const occupied = takenSeats.has(seat.code);
-                        const selected = choice.seat?.code === seat.code;
-                        const band = prices.indexOf(Number(seat.price?.amount) || 0);
-                        return [aisle, (
-                          <button
-                            key={seat.code}
-                            type="button"
-                            className={`ssr-seat is-band-${band} ${selected ? "is-selected" : ""} ${occupied ? "is-occupied" : ""}`}
-                            disabled={occupied}
-                            aria-pressed={selected}
-                            onClick={() => update("seat", selected ? null : {
-                              code: seat.code,
-                              label: seat.label || `Seat ${seat.code}`,
-                              price: Number(seat.price?.amount) || 0,
-                              currency: seat.price?.currency || "INR",
-                            })}
-                          >
-                            {letter}
-                          </button>
-                        )];
-                      })}
+                {cabin.partial ? (
+                  <p className="ssr-note">Only the seats returned by the supplier are shown.</p>
+                ) : null}
+                <div className="ssr-aircraft">
+                  <div className="ssr-nose" aria-hidden="true">
+                    <span>Front</span>
+                  </div>
+                  <div
+                    className="ssr-cabin"
+                    role="grid"
+                    aria-label="Aircraft seat map"
+                    data-columns={Math.max(1, cabin.left.length + cabin.right.length)}
+                    onKeyDown={moveSeatFocus}
+                  >
+                    <div className="ssr-row ssr-row-labels" aria-hidden="true">
+                      <span className="ssr-row-no" />
+                      {cabin.left.map((letter, index) => (
+                        <span key={letter} className="ssr-col-label">
+                          {index === 0 ? "Window" : index === cabin.left.length - 1 && cabin.aisle ? "Aisle" : letter}
+                        </span>
+                      ))}
+                      {cabin.aisle ? <span className="ssr-aisle">Aisle</span> : null}
+                      {cabin.right.map((letter, index) => (
+                        <span key={letter} className="ssr-col-label">
+                          {index === 0 && cabin.aisle ? "Aisle" : index === cabin.right.length - 1 ? "Window" : letter}
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                  {(catalog.seats || []).filter((seat) => !rowOf(seat.code)).map((seat) => (
+                    {cabin.rowNumbers.map((row) => {
+                      const exit = [...(cabin.rows.get(row)?.values() || [])].some(isExitSeat);
+                      return (
+                      <div key={row} className={`ssr-row ${exit ? "is-exit" : ""}`} role="row">
+                        <span className="ssr-row-no">{row}{exit ? <i>Exit</i> : null}</span>
+                        {cabin.left.map((letter) => (
+                          <SeatCell
+                            key={`${row}${letter}`}
+                            seat={cabin.rows.get(row)?.get(letter) || null}
+                            letter={letter}
+                            prices={cabin.prices}
+                            selectedCode={choice.seat?.code}
+                            takenSeats={takenSeats}
+                            onSelect={selectSeat}
+                          />
+                        ))}
+                        {cabin.aisle ? <span className="ssr-aisle" aria-hidden="true" /> : null}
+                        {cabin.right.map((letter) => (
+                          <SeatCell
+                            key={`${row}${letter}`}
+                            seat={cabin.rows.get(row)?.get(letter) || null}
+                            letter={letter}
+                            prices={cabin.prices}
+                            selectedCode={choice.seat?.code}
+                            takenSeats={takenSeats}
+                            onSelect={selectSeat}
+                          />
+                        ))}
+                      </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {cabin.unplaced.map((seat) => {
+                  const state = seatAvailability(seat, takenSeats);
+                  const selected = choice.seat?.code === seat.code;
+                  return (
                     <button
                       key={seat.code}
                       type="button"
-                      className={`ssr-seat-list ${choice.seat?.code === seat.code ? "is-selected" : ""}`}
-                      disabled={takenSeats.has(seat.code)}
-                      onClick={() => update("seat", choice.seat?.code === seat.code ? null : {
-                        code: seat.code,
-                        label: seat.label || seat.code,
-                        price: Number(seat.price?.amount) || 0,
-                        currency: seat.price?.currency || "INR",
-                      })}
+                      className={`ssr-seat-list ${selected ? "is-selected" : ""}`}
+                      disabled={state !== "available" && !selected}
+                      aria-pressed={selected}
+                      onClick={() => selectSeat(seat)}
                     >
                       {seat.label || seat.code} · {money(seat.price?.amount, seat.price?.currency)}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
+                <p className="ssr-selected-price">
+                  {choice.seat
+                    ? `${choice.seat.label} · ${money(choice.seat.price, choice.seat.currency)}`
+                    : "No seat selected"}
+                </p>
               </div>
             )
           ) : null}
 
-          {tab === "meal" ? (
-            <div className="ssr-cards">
-              {(catalog?.meals || []).map((meal) => {
+          {!loading && tab === "meal" ? (
+            <div className="ssr-panel ssr-cards" id="ssr-panel-meal" role="tabpanel" aria-labelledby="ssr-tab-meal">
+              {segmentCatalog.meals.length ? segmentCatalog.meals.map((meal) => {
                 const selected = choice.meal?.code === meal.code;
-                const veg = /veg/i.test(`${meal.label} ${meal.code}`) && !/non/i.test(`${meal.label} ${meal.code}`);
+                const diet = mealDiet(meal);
+                const image = meal.imageUrl || meal.image || "";
                 return (
                   <article key={meal.code} className={`ssr-card ${selected ? "is-selected" : ""}`}>
+                    {image ? <img src={image} alt="" className="ssr-card-image" /> : <span className={`ssr-meal-mark ${diet === "Veg" ? "is-veg" : diet === "Non-veg" ? "is-nonveg" : ""}`} aria-hidden="true" />}
                     <p className="ssr-card-title">{meal.label || meal.code}</p>
-                    <p className="ssr-card-copy">{veg ? "Vegetarian" : /non|nvml/i.test(`${meal.label} ${meal.code}`) ? "Non-vegetarian" : "Supplier meal"}</p>
+                    <p className="ssr-card-copy">{meal.description || diet || "Supplier meal"}</p>
+                    {diet ? <p className="ssr-diet">{diet}</p> : null}
                     <p className="ssr-card-price">{money(meal.price?.amount, meal.price?.currency)}</p>
-                    <button type="button" onClick={() => update("meal", selected ? null : {
-                      code: meal.code,
-                      label: meal.label || meal.code,
-                      price: Number(meal.price?.amount) || 0,
-                      currency: meal.price?.currency || "INR",
-                    })}
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => update("meal", selected ? null : itemPayload(meal))}
                     >
                       {selected ? "Remove" : "Select"}
                     </button>
                   </article>
                 );
-              })}
+              }) : <p className="ssr-empty">No meals were returned for this flight.</p>}
             </div>
           ) : null}
 
-          {tab === "baggage" ? (
-            <div className="ssr-cards">
+          {!loading && tab === "baggage" ? (
+            <div className="ssr-panel ssr-cards" id="ssr-panel-baggage" role="tabpanel" aria-labelledby="ssr-tab-baggage">
               {includedBaggage ? (
                 <article className="ssr-card is-included">
-                  <p className="ssr-card-title">Included baggage</p>
+                  <p className="ssr-card-title">Included allowance</p>
                   <p className="ssr-card-copy">
                     {includedBaggage.cabinKg != null ? `${includedBaggage.cabinKg} kg cabin` : "Cabin allowance included"}
                     {includedBaggage.checkinKg != null ? ` · ${includedBaggage.checkinKg} kg check-in` : ""}
@@ -288,42 +435,95 @@ export default function FlightAddOnsModal({
                   <p className="ssr-card-price">Included</p>
                 </article>
               ) : null}
-              {(catalog?.baggage || []).map((bag) => {
+              {segmentCatalog.baggage.length ? segmentCatalog.baggage.map((bag) => {
                 const selected = choice.baggage?.code === bag.code;
+                const weight = baggageWeight(bag);
                 return (
                   <article key={bag.code} className={`ssr-card ${selected ? "is-selected" : ""}`}>
+                    <p className="ssr-card-kicker">{weight != null ? `+${weight} kg` : "Extra baggage"}</p>
                     <p className="ssr-card-title">{bag.label || bag.code}</p>
-                    <p className="ssr-card-copy">{activeSegment ? `${activeSegment.from} → ${activeSegment.to}` : "Paid extra baggage"}</p>
+                    <p className="ssr-card-copy">{bag.description || (route ? `For ${route}` : "Supplier baggage option")}</p>
                     <p className="ssr-card-price">{money(bag.price?.amount, bag.price?.currency)}</p>
-                    <button type="button" onClick={() => update("baggage", selected ? null : {
-                      code: bag.code,
-                      label: bag.label || bag.code,
-                      price: Number(bag.price?.amount) || 0,
-                      currency: bag.price?.currency || "INR",
-                    })}
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => update("baggage", selected ? null : itemPayload(bag))}
                     >
-                      {selected ? "Remove" : "Select"}
+                      {selected ? "Remove extra baggage" : "Add baggage"}
                     </button>
                   </article>
                 );
-              })}
+              }) : <p className="ssr-empty">No extra baggage was returned for this flight.</p>}
             </div>
           ) : null}
+        </div>
+        <aside className="ssr-summary" aria-label="Seat price summary">
+          <p className="ssr-kicker">Price details</p>
+          <h3>{route || "Flight"}</h3>
+          <p>{flightLabel || airline || "Selected flight"}</p>
+          <p className="ssr-summary-pax">{displayName} · {passenger.typeLabel}</p>
+          <dl>
+            <div className="ssr-summary-seat" key={choice.seat?.code || "none"}>
+              <dt>{choice.seat?.label || "No seat selected"}</dt>
+              <dd>{choice.seat ? money(choice.seat.price, choice.seat.currency) : "—"}</dd>
+            </div>
+            {choice.meal ? <div><dt>{choice.meal.label}</dt><dd>{money(choice.meal.price, choice.meal.currency)}</dd></div> : null}
+            {choice.baggage ? <div><dt>{choice.baggage.label}</dt><dd>{money(choice.baggage.price, choice.baggage.currency)}</dd></div> : null}
+            <div><dt>Selected add-ons</dt><dd>{money(addonQuote.amount, currency)}</dd></div>
+            {payable != null ? <div className="is-total"><dt>Payable</dt><dd>{money(payable, payableCurrency || currency)}</dd></div> : null}
+          </dl>
+          <div className="ssr-summary-actions">
+            <button type="button" onClick={onClose}>Back</button>
+            <button type="button" onClick={() => { if (choice.seat) update("seat", null); onClose(); }}>Skip seats</button>
+            <button type="button" className="ssr-confirm" onClick={onClose}>Continue</button>
+          </div>
+        </aside>
         </div>
 
         <footer className="ssr-footer">
           <p>
-            {choice.seat ? choice.seat.label : "No seat"}
+            {choice.seat?.label || "No seat"}
             {choice.meal ? ` · ${choice.meal.label}` : ""}
             {choice.baggage ? ` · ${choice.baggage.label}` : ""}
-            <strong>
-              {" "}
-              {money((Number(choice.seat?.price) || 0) + (Number(choice.meal?.price) || 0) + (Number(choice.baggage?.price) || 0), "INR")}
-            </strong>
+            <strong> {money(segmentTotal, currency)}</strong>
           </p>
-          <button type="button" className="ssr-confirm" onClick={onClose}>Done</button>
+          <div className="ssr-summary-actions">
+            <button type="button" onClick={onClose}>Back</button>
+            <button type="button" onClick={() => { if (choice.seat) update("seat", null); onClose(); }}>Skip</button>
+            <button type="button" className="ssr-confirm" onClick={onClose}>Continue</button>
+          </div>
         </footer>
       </div>
     </div>
+  );
+}
+
+function SeatCell({ seat, letter, prices, selectedCode, takenSeats, onSelect }) {
+  if (!seat) {
+    return <span className="ssr-seat-gap" aria-hidden="true" />;
+  }
+  const state = seatAvailability(seat, takenSeats);
+  const selected = selectedCode === seat.code;
+  const band = Math.min(Math.max(prices.indexOf(Number(seat.price?.amount) || 0), 0), 2);
+  const category = seatCategory(seat);
+  const blocked = state !== "available";
+  const reason = state === "occupied"
+    ? "occupied"
+    : state === "taken"
+      ? "already assigned on this flight"
+      : state === "unavailable"
+        ? "unavailable"
+        : money(seat.price?.amount, seat.price?.currency);
+  return (
+    <button
+      type="button"
+      className={`ssr-seat is-${category} is-band-${band} ${selected ? "is-selected" : ""} is-${state}`}
+      disabled={blocked && !selected}
+      aria-pressed={selected}
+      aria-label={`Seat ${seat.code}, ${reason}`}
+      onClick={() => onSelect(seat)}
+    >
+      {letter}
+    </button>
   );
 }

@@ -4,40 +4,41 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import ServiceSearch from "@/components/ServiceSearch";
+import TravelHero from "@/components/home/TravelHero";
+import TrendingDestinations from "@/components/home/TrendingDestinations";
 import Testimonials from "@/components/Testimonials";
 import HomeFromCms from "@/components/HomeFromCms";
 import { PopularFlightRoutes } from "@/components/PopularFlightRoutes";
 import Footer from "@/components/Footer";
 import {
-  normalizeService,
   parseBusSearchParams,
   parseFlightSearchParams,
   parseHotelSearchParams,
 } from "@/lib/searchQuery";
 import { useSite } from "@/components/site/SiteProvider";
 
+function offeredService(value, offeredIds) {
+  const id = String(value || "").toLowerCase();
+  const normalized = id === "holidays" ? "holiday" : id === "flights" ? "flight" : id === "hotels" ? "hotel" : id === "buses" ? "bus" : id;
+  if (offeredIds.includes(normalized)) return normalized;
+  return offeredIds[0] || "flight";
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { branding, services, banners } = useSite();
+  const { services } = useSite();
   const offeredIds = services.map((s) => s.id);
-  const serviceFromUrl = normalizeService(searchParams.get("service"));
-  const initialService = offeredIds.includes(serviceFromUrl)
-    ? serviceFromUrl
-    : offeredIds[0] || "flight";
-  const [activeService, setActiveService] = useState(initialService);
-  const heroBanner = banners.find((b) => b.placement === "HOME_HERO");
+  const serviceFromUrl = offeredService(searchParams.get("service"), offeredIds);
+  const [activeService, setActiveService] = useState(serviceFromUrl);
 
   useEffect(() => {
-    const next = offeredIds.includes(serviceFromUrl)
-      ? serviceFromUrl
-      : offeredIds[0] || serviceFromUrl;
-    setActiveService(next);
+    setActiveService(offeredService(searchParams.get("service"), offeredIds));
   }, [serviceFromUrl, offeredIds.join("|")]);
 
   const onServiceChange = useCallback(
     (serviceId) => {
-      const next = normalizeService(serviceId);
+      const next = offeredService(serviceId, offeredIds);
       if (offeredIds.length && !offeredIds.includes(next)) return;
       setActiveService(next);
       const params = new URLSearchParams(searchParams.toString());
@@ -94,35 +95,7 @@ export default function Dashboard() {
         onServiceChange={onServiceChange}
       />
 
-      <section className="hero-band relative bg-[linear-gradient(145deg,var(--hero-from),var(--hero-via)_45%,var(--hero-to))] pb-28 pt-10 sm:pb-32 sm:pt-14">
-        <div className="hero-decor" aria-hidden="true">
-          <div className="hero-glow pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-[var(--brand-bright)]/30 blur-3xl" />
-          <div className="pointer-events-none absolute -left-16 bottom-0 h-64 w-64 rounded-full bg-[var(--accent)]/20 blur-3xl" />
-          <div className="hero-dots pointer-events-none absolute inset-0 opacity-[0.12]" />
-        </div>
-
-        <div className="container-page relative z-10">
-          <p className="fade-up text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-bright)]">
-            {branding.websiteName || "APL Travel"}
-          </p>
-          <h1 className="fade-up font-display mt-4 max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
-            {heroBanner?.title || branding.websiteName || "Search and book travel"}
-          </h1>
-          {branding.tagline ? (
-            <p className="fade-up-delay-1 mt-5 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
-              {branding.tagline}
-            </p>
-          ) : null}
-          {heroBanner?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={heroBanner.imageUrl}
-              alt={heroBanner.title || "Featured"}
-              className="fade-up-delay-2 mt-8 max-h-48 w-full max-w-3xl rounded-xl object-cover opacity-95"
-            />
-          ) : null}
-        </div>
-      </section>
+      <TravelHero />
 
       {services.length ? (
         <ServiceSearch
@@ -137,7 +110,8 @@ export default function Dashboard() {
           </div>
         </section>
       )}
-      <PopularFlightRoutes enabled={services.length > 0} service={activeService} />
+      <TrendingDestinations enabled={services.some((service) => service.id === "holiday")} />
+      <PopularFlightRoutes enabled={services.some((service) => service.id === "flight")} service="flight" />
       <HomeFromCms activeService={activeService} />
       <Testimonials />
       <Footer />

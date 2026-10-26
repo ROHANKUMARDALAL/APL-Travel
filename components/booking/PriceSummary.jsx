@@ -13,8 +13,13 @@ export default function PriceSummary({
   stickyMobile = true,
   coupon = null,
   addonsAmount = 0,
+  returnAmount = 0,
 }) {
   const marketId = getActiveMarketId();
+  const payable =
+    (Number.isFinite(Number(coupon?.payable)) ? Number(coupon.payable) : totals.total || 0) +
+    (addonsAmount || 0) +
+    (Number(returnAmount) || 0);
 
   return (
     <>
@@ -64,7 +69,7 @@ export default function PriceSummary({
           ) : null}
           <div className="is-total">
             <dt>Total Payable</dt>
-            <dd>{formatMoney((Number.isFinite(Number(coupon?.payable)) ? Number(coupon.payable) : totals.total || 0) + (addonsAmount || 0), marketId, coupon?.currency || totals.currency)}</dd>
+            <dd>{formatMoney(payable, marketId, coupon?.currency || totals.currency)}</dd>
           </div>
         </dl>
 
@@ -82,6 +87,8 @@ export default function PriceSummary({
               </li>
             ))}
           </ul>
+        ) : addonsAmount > 0 ? (
+          <p className="price-summary-note">Add-ons are included in the total</p>
         ) : (
           <p className="price-summary-note">No paid extras selected</p>
         )}
@@ -104,7 +111,7 @@ export default function PriceSummary({
       {stickyMobile ? (
         <div className="price-summary-mobile-bar">
           <div>
-            <p className="price-summary-mobile-total">{formatMoney((Number.isFinite(Number(coupon?.payable)) ? Number(coupon.payable) : totals.total || 0) + (addonsAmount || 0), marketId, coupon?.currency || totals.currency)}</p>
+            <p className="price-summary-mobile-total">{formatMoney(payable, marketId, coupon?.currency || totals.currency)}</p>
             <p className="price-summary-mobile-meta">Incl. taxes & fees</p>
           </div>
           <button

@@ -131,32 +131,66 @@ export default function FilterPanel({
 
       {service === "flight" ? (
         <>
-          <div className="filter-card">
-            <span className="filter-group-title">Price ({meta.currency})</span>
-            <DualRange
-              min={meta.priceMin}
-              max={meta.priceMax}
-              low={filters.minPrice ?? meta.priceMin}
-              high={filters.maxPrice ?? meta.priceMax}
-              formatValue={meta.formatPrice}
-              onChange={(minPrice, maxPrice) => onChange({ ...filters, minPrice, maxPrice })}
-            />
-          </div>
-          <ChipGroup
-            title="Stops"
-            options={[
-              { id: "0", label: "Non-stop" },
-              { id: "1", label: "1 stop" },
-            ]}
-            selected={filters.stops}
-            onChange={(stops) => onChange({ ...filters, stops })}
-          />
-          <ChipGroup
-            title="Airlines"
-            options={meta.airlines.map((name) => ({ id: name, label: name }))}
-            selected={filters.airlines}
-            onChange={(airlines) => onChange({ ...filters, airlines })}
-          />
+          <fieldset className="filter-group fr-stops">
+            <legend className="filter-group-title">Stops</legend>
+            {(meta.stopStats || []).map((option) => {
+              const checked = option.id === "any"
+                ? !filters.stops?.length
+                : option.id === "0"
+                  ? filters.stops?.length === 1 && filters.stops[0] === "0"
+                  : filters.stops?.includes("0") && filters.stops?.includes("1");
+              return (
+                <label key={option.id} className={`fr-stop ${checked ? "is-on" : ""}`}>
+                  <input
+                    type="radio"
+                    name="flight-stops"
+                    checked={checked}
+                    onChange={() => onChange({
+                      ...filters,
+                      stops: option.id === "any" ? [] : option.id === "0" ? ["0"] : ["0", "1"],
+                    })}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    {option.from != null ? <small>From {meta.formatPrice(option.from)}</small> : null}
+                  </span>
+                  <em>{option.count}</em>
+                </label>
+              );
+            })}
+          </fieldset>
+          {meta.showCheckedBag ? (
+            <label className={`filter-check fr-bag ${filters.checkedBag ? "is-on" : ""}`}>
+              <input
+                type="checkbox"
+                checked={Boolean(filters.checkedBag)}
+                onChange={() => onChange({ ...filters, checkedBag: !filters.checkedBag })}
+              />
+              <span>
+                <strong>Checked bag included</strong>
+                <small>Shows fares that include check-in baggage.</small>
+              </span>
+            </label>
+          ) : null}
+          <fieldset className="filter-group">
+            <legend className="filter-group-title">Airlines</legend>
+            <div className="filter-options">
+              {(meta.airlineStats || meta.airlines.map((name) => ({ id: name, label: name, count: null }))).map((option) => {
+                const checked = filters.airlines.includes(option.id);
+                return (
+                  <label key={option.id} className={`filter-check ${checked ? "is-on" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onChange({ ...filters, airlines: toggleId(filters.airlines, option.id, checked) })}
+                    />
+                    <span>{option.label}</span>
+                    {option.count != null ? <em className="fr-count">{option.count}</em> : null}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
           <ChipGroup
             title="Departure time"
             options={meta.departBuckets}
@@ -169,6 +203,17 @@ export default function FilterPanel({
             selected={filters.arriveBuckets}
             onChange={(arriveBuckets) => onChange({ ...filters, arriveBuckets })}
           />
+          <div className="filter-card">
+            <span className="filter-group-title">Price ({meta.currency})</span>
+            <DualRange
+              min={meta.priceMin}
+              max={meta.priceMax}
+              low={filters.minPrice ?? meta.priceMin}
+              high={filters.maxPrice ?? meta.priceMax}
+              formatValue={meta.formatPrice}
+              onChange={(minPrice, maxPrice) => onChange({ ...filters, minPrice, maxPrice })}
+            />
+          </div>
         </>
       ) : null}
 
@@ -258,8 +303,42 @@ export default function FilterPanel({
 
       {service === "transfer" ? (
         <>
+          <CheckboxGroup
+            title="Cab type"
+            options={(meta.vehicleCategories || []).map((t) => ({ id: t, label: t }))}
+            selected={filters.vehicleCategories}
+            onChange={(vehicleCategories) => onChange({ ...filters, vehicleCategories })}
+          />
+          <CheckboxGroup
+            title="Car model"
+            options={(meta.models || []).map((t) => ({ id: t, label: t }))}
+            selected={filters.models}
+            onChange={(models) => onChange({ ...filters, models })}
+          />
+          {meta.fuelTypes?.length ? (
+            <CheckboxGroup
+              title="Fuel type"
+              options={meta.fuelTypes.map((t) => ({ id: t, label: t }))}
+              selected={filters.fuelTypes}
+              onChange={(fuelTypes) => onChange({ ...filters, fuelTypes })}
+            />
+          ) : null}
+          {meta.acOptions?.length ? (
+            <CheckboxGroup
+              title="Air conditioning"
+              options={meta.acOptions.map((t) => ({ id: t, label: t }))}
+              selected={filters.ac}
+              onChange={(ac) => onChange({ ...filters, ac })}
+            />
+          ) : null}
+          <CheckboxGroup
+            title="Seating capacity"
+            options={(meta.seats || []).map((t) => ({ id: String(t), label: `${t} seats` }))}
+            selected={(filters.seats || []).map(String)}
+            onChange={(seats) => onChange({ ...filters, seats })}
+          />
           <label className="filter-range">
-            <span className="filter-group-title">Max price ({meta.currency})</span>
+            <span className="filter-group-title">Price range ({meta.currency})</span>
             <input
               type="range"
               min={meta.priceMin}
@@ -273,12 +352,6 @@ export default function FilterPanel({
               Up to {meta.formatPrice(filters.maxPrice ?? meta.priceMax)}
             </span>
           </label>
-          <CheckboxGroup
-            title="Vehicle category"
-            options={(meta.vehicleCategories || []).map((t) => ({ id: t, label: t }))}
-            selected={filters.vehicleCategories}
-            onChange={(vehicleCategories) => onChange({ ...filters, vehicleCategories })}
-          />
         </>
       ) : null}
 

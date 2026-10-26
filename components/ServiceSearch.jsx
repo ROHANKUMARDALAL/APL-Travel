@@ -1,31 +1,58 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ServiceIcon from "@/components/ServiceIcon";
 import FlightSearchForm from "@/components/forms/FlightSearchForm";
 import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
 import TransferSearchForm from "@/components/forms/TransferSearchForm";
+import HolidayHomeSearch from "@/components/home/HolidayHomeSearch";
 import { buildResultsHref } from "@/lib/searchQuery";
 import { useSite } from "@/components/site/SiteProvider";
 
-const SERVICE_TITLES = {
-  flight: "Search flights",
-  hotel: "Search hotels",
-  bus: "Search buses",
-  transfer: "Search transfers",
+const PILL_LABELS = {
+  flight: "Flights",
+  hotel: "Hotels",
+  bus: "Bus",
+  transfer: "Transfer (Cab)",
 };
 
-export default function ServiceSearch({
-  activeService,
-  onServiceChange,
-  initialValues,
-}) {
+const SEARCH_BUTTON = {
+  flight: "Search Flights",
+  hotel: "Search Hotels",
+  bus: "Search Buses",
+  transfer: "Search Cabs",
+};
+
+const ENQUIRY_COPY = {
+  visa: "Tell us where you are travelling. This is a request for assistance, not a visa approval.",
+  recharge: "Send a recharge request to this travel desk. This does not complete a payment.",
+  insurance: "Compare mock travel plans. These are not real policies and nothing is purchased here.",
+};
+
+const QUICK = ["visa", "recharge", "holiday", "insurance"];
+const QUICK_TONE = {
+  visa: "#ec4899",
+  recharge: "#16a34a",
+  holiday: "#f59e0b",
+  insurance: "#7c3aed",
+};
+const QUICK_HINT = {
+  visa: "Enquiry",
+  recharge: "Request",
+  holiday: "Enquiry",
+  insurance: "Compare",
+};
+
+export default function ServiceSearch({ activeService, onServiceChange, initialValues }) {
   const router = useRouter();
   const searchQueryRef = useRef(null);
   const [formError, setFormError] = useState("");
   const { services } = useSite();
+  const active = services.find((service) => service.id === activeService) || services[0];
+  const isSearch = active && active.kind !== "page";
 
   const handleSearchChange = useCallback((query) => {
     searchQueryRef.current = query;
@@ -39,93 +66,82 @@ export default function ServiceSearch({
       return;
     }
     setFormError("");
-    const href = buildResultsHref(activeService, query);
-    router.push(href);
+    router.push(buildResultsHref(activeService, query));
   }
 
   const formKey = `${activeService}-${initialValues ? "prefill" : "default"}`;
+  const quick = services.filter((service) => QUICK.includes(service.id));
 
   return (
-    <section id="search" className="relative z-10 -mt-16 scroll-mt-24 sm:-mt-20">
+    <section id="search" className="home-search-wrap">
       <div className="container-page">
-        <div className="search-panel-shell fade-up-delay-2">
-          <div className="search-panel-aura" aria-hidden="true">
-            <div className="search-panel-glow" />
-            <div className="search-panel-glow search-panel-glow-alt" />
+        <div className="home-search-panel">
+          <div className="home-service-pills" role="tablist" aria-label="Travel services">
+            {services.map((service) => {
+              const selected = service.id === active?.id;
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={selected ? "is-active" : ""}
+                  onClick={() => onServiceChange(service.id)}
+                >
+                  <ServiceIcon name={service.icon} className="h-4 w-4" />
+                  {PILL_LABELS[service.id] || service.label}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="search-panel">
-            <div
-              className="mb-4 flex flex-wrap gap-2"
-              role="tablist"
-              aria-label="Travel services"
-            >
-              {services.map((service) => {
-                const isActive = service.id === activeService;
-                return (
-                  <button
-                    key={service.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    className={`service-tab ${isActive ? "service-tab-active" : ""}`}
-                    onClick={() => onServiceChange(service.id)}
-                  >
-                    <ServiceIcon name={service.icon} />
-                    {service.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {activeService === "flight" ? null : (
-              <h2 className="search-service-title">
-                {SERVICE_TITLES[activeService]}{" "}
-                <span>· {activeService}</span>
-              </h2>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              {activeService === "flight" && (
-                <FlightSearchForm
-                  key={formKey}
-                  heading="Search flights"
-                  initialValues={initialValues}
-                  onSearchChange={handleSearchChange}
-                />
-              )}
-              {activeService === "hotel" && (
-                <HotelSearchForm
-                  key={formKey}
-                  initialValues={initialValues}
-                  onSearchChange={handleSearchChange}
-                />
-              )}
-              {activeService === "bus" && (
-                <BusSearchForm
-                  key={formKey}
-                  initialValues={initialValues}
-                  onSearchChange={handleSearchChange}
-                />
-              )}
-              {activeService === "transfer" && (
-                <TransferSearchForm
-                  key={formKey}
-                  initialValues={initialValues}
-                  onSearchChange={handleSearchChange}
-                />
-              )}
-
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className={`text-sm ${formError ? "field-error" : "text-[var(--ink-muted)]"}`}>
-                  {formError || "Results update with your filters and travel dates."}
-                </p>
-                <button type="submit" className="btn-primary min-w-[160px]">
-                  Search {activeService}
-                </button>
+          {isSearch ? (
+            <form onSubmit={handleSubmit} className={activeService === "flight" ? "home-flight-stack" : "home-other-search"}>
+              {activeService === "flight" ? (
+                <FlightSearchForm key={formKey} heading="" initialValues={initialValues} onSearchChange={handleSearchChange} />
+              ) : null}
+              {activeService === "hotel" ? (
+                <HotelSearchForm key={formKey} initialValues={initialValues} onSearchChange={handleSearchChange} />
+              ) : null}
+              {activeService === "bus" ? (
+                <BusSearchForm key={formKey} initialValues={initialValues} onSearchChange={handleSearchChange} />
+              ) : null}
+              {activeService === "transfer" ? (
+                <TransferSearchForm key={formKey} initialValues={initialValues} onSearchChange={handleSearchChange} />
+              ) : null}
+              <div className="home-search-submit">
+                {formError ? <p className="field-error">{formError}</p> : null}
+                <button type="submit" className="home-search-btn">{SEARCH_BUTTON[activeService] || "Search"}</button>
               </div>
             </form>
-          </div>
+          ) : null}
+
+          {active?.id === "holiday" ? <HolidayHomeSearch /> : null}
+
+          {active && ENQUIRY_COPY[active.id] ? (
+            <div className="home-enquiry-panel">
+              <h2>{active.label}</h2>
+              <p>{ENQUIRY_COPY[active.id]}</p>
+              <Link className="home-search-btn" href={active.href || `/${active.id}`}>{`Continue ${active.label}`}</Link>
+            </div>
+          ) : null}
+
+          {quick.length ? (
+            <div className="home-quick-grid">
+              {quick.map((service) => (
+                <button key={service.id} type="button" onClick={() => onServiceChange(service.id)}>
+                  <span className="home-quick-icon" style={{ background: QUICK_TONE[service.id] }}>
+                    <ServiceIcon name={service.icon} className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <strong>{service.label}</strong>
+                    <small>{QUICK_HINT[service.id]}</small>
+                  </span>
+                  <span className="home-quick-chevron" aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

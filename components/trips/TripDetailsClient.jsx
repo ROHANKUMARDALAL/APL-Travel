@@ -13,10 +13,11 @@ import {
   getBookingHeadline,
   getTravellerDisplayName,
   loadAccountBooking,
+  mapAccountBooking,
   paymentStatusLabel,
   refundStatusLabel,
 } from "@/lib/userBookings";
-import { cancelMyBooking } from "@/lib/api/booking";
+import { cancelMyBooking, changeBusPoints } from "@/lib/api/booking";
 import { formatShortDate } from "@/lib/resultsHelpers";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 import { downloadTicketPdf, ticketFromBooking } from "@/lib/ticketPdf";
@@ -171,7 +172,12 @@ export default function TripDetailsClient({ reference }) {
           {booking.service === "hotel" ? (
             <HotelStay trip={trip} marketId={marketId} />
           ) : booking.service === "bus" ? (
-            <BusRide trip={trip} marketId={marketId} />
+            <BusRide
+              trip={trip}
+              marketId={marketId}
+              reference={booking.reference}
+              onUpdated={(row) => setBooking(mapAccountBooking(row))}
+            />
           ) : booking.service === "transfer" ? (
             <TransferRide trip={trip} marketId={marketId} />
           ) : (
@@ -384,8 +390,47 @@ function HotelStay({ trip, marketId }) {
   );
 }
 
-function BusRide({ trip, marketId }) {
+function PointFacts({ point }) {
+  if (!point) return <p className="trip-muted">Not selected</p>;
+  return (
+    <>
+      <p className="trip-place-name">{point.name}</p>
+      <p className="trip-muted">Code {point.code}</p>
+      {point.time ? <p className="trip-time">{point.time}</p> : null}
+      {point.address ? <p className="trip-muted">{point.address}</p> : null}
+      {point.landmark ? <p className="trip-muted">{point.landmark}</p> : null}
+    </>
+  );
+}
+
+function BusRide({ trip, marketId, reference, onUpdated }) {
   const seats = formatSelectedSeats(trip.seats);
+  const [open, setOpen] = useState(false);
+  const [boarding, setBoarding] = useState(trip.boardingPoint?.code || "");
+  const [dropping, setDropping] = useState(trip.droppingPoint?.code || "");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const boardingPoints = Array.isArray(trip.boardingPoints) ? trip.boardingPoints : [];
+  const droppingPoints = Array.isArray(trip.droppingPoints) ? trip.droppingPoints : [];
+  const allowed = trip.pointChangeAllowed !== false && Boolean(trip.departureAt);
+
+  async function savePoints() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const row = await changeBusPoints(reference, {
+        boardingPointCode: boarding,
+        droppingPointCode: dropping,
+      });
+      onUpdated?.(row);
+      setOpen(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The points could not be changed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="trip-route is-bus">
       <div className="trip-route-head">
@@ -400,6 +445,66 @@ function BusRide({ trip, marketId }) {
         <span className="trip-arrow" aria-hidden="true">→</span>
         <Place label="To" place={trip.to || "—"} when={prettyDay(trip.date, marketId)} />
       </div>
+      <div className="trip-legs">
+        <div className="trip-place">
+          <p className="trip-card-label">Boarding point</p>
+          <PointFacts point={trip.boardingPoint} />
+        </div>
+        <div className="trip-place">
+          <p className="trip-card-label">Dropping point</p>
+          <PointFacts point={trip.droppingPoint} />
+        </div>
+      </div>
+      <div className="trip-people">
+        <p className="trip-card-label">Available boarding points</p>
+        <div className="trip-chip-row">
+          {boardingPoints.map((point) => (
+            <span key={point.code} className="trip-person-chip">
+              {point.name} · {point.code}{point.time ? ` · ${point.time}` : ""}
+            </span>
+          ))}
+        </div>
+        <p className="trip-card-label">Available dropping points</p>
+        <div className="trip-chip-row">
+          {droppingPoints.map((point) => (
+            <span key={point.code} className="trip-person-chip">
+              {point.name} · {point.code}{point.time ? ` · ${point.time}` : ""}
+            </span>
+          ))}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="btn-ghost"
+        disabled={!allowed || busy}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {allowed ? "Change boarding / dropping point" : "Changes close 2 hours before departure"}
+      </button>
+      {open ? (
+        <div className="booking-form-grid">
+          <label className="search-field">
+            <span className="field-label">Boarding point</span>
+            <select className="field-input" value={boarding} onChange={(event) => setBoarding(event.target.value)}>
+              {boardingPoints.map((point) => (
+                <option key={point.code} value={point.code}>{point.name} · {point.time || point.code}</option>
+              ))}
+            </select>
+          </label>
+          <label className="search-field">
+            <span className="field-label">Dropping point</span>
+            <select className="field-input" value={dropping} onChange={(event) => setDropping(event.target.value)}>
+              {droppingPoints.map((point) => (
+                <option key={point.code} value={point.code}>{point.name} · {point.time || point.code}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="btn-primary" disabled={busy} onClick={savePoints}>
+            {busy ? "Saving…" : "Save points"}
+          </button>
+          {message ? <p className="field-error">{message}</p> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -415,6 +520,9 @@ function TransferRide({ trip, marketId }) {
           {trip.vehicleName ? <span className="trip-tag">{trip.vehicleName}</span> : null}
           {trip.vehicleCategory ? (
             <span className="trip-tag is-soft">{trip.vehicleCategory}</span>
+          ) : null}
+          {trip.pickupPoint?.name ? (
+            <span className="trip-tag">Pickup: {trip.pickupPoint.name}</span>
           ) : null}
         </div>
       </div>

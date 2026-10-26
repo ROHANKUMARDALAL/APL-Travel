@@ -5,7 +5,22 @@ import DatePicker, { today } from "@/components/ui/DatePicker";
 import { isBeforeDay, startOfDay } from "@/lib/dateUtils";
 import { buildTransferSearchQuery } from "@/lib/searchQuery";
 
+const TRIP_TYPES = [
+  ["AIRPORT_TRANSFER", "Airport Transfer"],
+  ["OUTSTATION", "Outstation"],
+  ["LOCAL", "Local"],
+];
+
+const TRIP_KINDS = {
+  AIRPORT_TRANSFER: ["AIRPORT", "HOTEL"],
+  OUTSTATION: ["CITY", "CITY"],
+  LOCAL: ["CITY", "ADDRESS"],
+};
+
 export default function TransferSearchForm({ onSearchChange, initialValues }) {
+  const [tripType, setTripType] = useState(
+    () => initialValues?.tripType || "AIRPORT_TRANSFER",
+  );
   const [pickup, setPickup] = useState(
     () => initialValues?.pickup || "Delhi Airport (DEL)",
   );
@@ -31,6 +46,7 @@ export default function TransferSearchForm({ onSearchChange, initialValues }) {
   useEffect(() => {
     onSearchChange?.(
       buildTransferSearchQuery({
+        tripType,
         pickup,
         dropoff,
         pickupKind,
@@ -41,6 +57,7 @@ export default function TransferSearchForm({ onSearchChange, initialValues }) {
       }),
     );
   }, [
+    tripType,
     pickup,
     dropoff,
     pickupKind,
@@ -56,8 +73,32 @@ export default function TransferSearchForm({ onSearchChange, initialValues }) {
     setTravelDate(clamped);
   }
 
+  function selectTrip(next) {
+    const [nextPickup, nextDrop] = TRIP_KINDS[next] || TRIP_KINDS.AIRPORT_TRANSFER;
+    setTripType(next);
+    setPickupKind(nextPickup);
+    setDropoffKind(nextDrop);
+  }
+
   return (
     <div className="search-form-grid bus-form-grid">
+      <div className="field cab-trip-field">
+        <span className="field-label">Trip type</span>
+        <div className="cab-trip-types" role="radiogroup" aria-label="Trip type">
+          {TRIP_TYPES.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={tripType === value}
+              className={tripType === value ? "is-on" : ""}
+              onClick={() => selectTrip(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="field">
         <span className="field-label">Pickup</span>
         <input

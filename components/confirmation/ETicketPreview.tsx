@@ -10,6 +10,7 @@ type ETicketPreviewProps = {
 
 function FlightItinerary({ ticket }: { ticket: TicketDocument }) {
   const flight = ticket.flight;
+  const back = ticket.returnFlight;
   return (
     <div className="eticket-itinerary">
       <div className="eticket-itinerary-col is-depart">
@@ -49,6 +50,12 @@ function FlightItinerary({ ticket }: { ticket: TicketDocument }) {
         <span>Check-in {flight.checkinKg} kg</span>
         <span className="eticket-baggage-note">{flight.baggage}</span>
       </div>
+      {back ? (
+        <p className="eticket-meta">
+          Return {back.from.code} {back.from.time} → {back.to.code} {back.to.time} · {back.flightNumber}
+          {back.pnr ? ` · ${back.pnr}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -99,7 +106,7 @@ export default function ETicketPreview({ confirmation, item }: ETicketPreviewPro
             <p>{ticket.company.address}</p>
             <p>{ticket.company.email}</p>
             <p className="eticket-pnr">
-              PNR / Booking: <strong>{ticket.reference}</strong>
+              PNR / Booking: <strong>{ticket.supplierPnr || ticket.reference}</strong>
             </p>
           </div>
         </header>

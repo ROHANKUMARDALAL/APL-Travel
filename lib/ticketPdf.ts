@@ -46,6 +46,8 @@ export type TicketDocument = {
     email: string;
     phone: string;
   };
+  mockBooking?: boolean;
+  supplierPnr?: string;
   flight: {
     airline: string;
     airlineCode: string;
@@ -57,6 +59,13 @@ export type TicketDocument = {
     checkinKg: number;
     duration: string;
     stops: string;
+    from: TicketEndpoint;
+    to: TicketEndpoint;
+  };
+  returnFlight?: {
+    airline: string;
+    flightNumber: string;
+    pnr: string;
     from: TicketEndpoint;
     to: TicketEndpoint;
   };
@@ -96,6 +105,10 @@ type BookingLike = {
   travellers?: unknown;
   contact?: { email?: string; phone?: string };
   selectedSeat?: string | string[];
+  addOns?: unknown;
+  flightAddOns?: unknown;
+  supplierPnr?: string;
+  returnPnr?: string;
   createdAt?: string;
   bookedAtLocal?: string;
 };
@@ -120,6 +133,12 @@ type CatalogLike = {
   location?: string;
   roomType?: string;
   operator?: string;
+  returnLeg?: {
+    airline?: string;
+    flightNumber?: string;
+    from?: { city?: string; code?: string; time?: string; date?: string };
+    to?: { city?: string; code?: string; time?: string; date?: string };
+  };
 };
 
 function sanitize(value: unknown) {
@@ -192,7 +211,27 @@ function money(amount: unknown, currency: string) {
   return sanitize(formatMoney(number, getActiveMarketId(), currency || "INR"));
 }
 
-function personRows(travellers: unknown): TicketPassenger[] {
+function addonLabels(addOns: unknown, person: Record<string, unknown>, index: number) {
+  const bag = addOns && typeof addOns === "object" ? addOns as {
+    seats?: { passengerKey?: string; code?: string; label?: string }[];
+    meals?: { passengerKey?: string; code?: string; label?: string }[];
+    baggage?: { passengerKey?: string; code?: string; label?: string }[];
+  } : {};
+  const keys = new Set(
+    [person.id, person.passengerKey, `adult-${index + 1}`, `child-${index + 1}`, `infant-${index + 1}`]
+      .filter(Boolean)
+      .map((value) => String(value)),
+  );
+  const matches = (row: { passengerKey?: string }) => !row?.passengerKey || keys.has(String(row.passengerKey));
+  const label = (row: { code?: string; label?: string }) => row.label || row.code || "";
+  return {
+    seats: (bag.seats || []).filter(matches).map(label).filter(Boolean),
+    meals: (bag.meals || []).filter(matches).map(label).filter(Boolean),
+    baggage: (bag.baggage || []).filter(matches).map(label).filter(Boolean),
+  };
+}
+
+function personRows(travellers: unknown, addOns?: unknown): TicketPassenger[] {
   if (!travellers) return [];
   let list: Record<string, unknown>[] = [];
   if (Array.isArray(travellers)) {
@@ -207,18 +246,20 @@ function personRows(travellers: unknown): TicketPassenger[] {
     const gender = person.gender
       ? String(person.gender).replace(/^\w/, (c) => c.toUpperCase())
       : "-";
-    const seat = person.seat ? String(person.seat) : "-";
+    const selected = addonLabels(addOns, person, index);
+    const seat = person.seat ? String(person.seat) : selected.seats.join(", ");
     const meal = person.meal
       ? String(person.meal)
       : person.meals
         ? "Included"
-        : "-";
+        : selected.meals.join(", ");
+    const extras = [seat, meal, selected.baggage.join(", ")].filter((part) => part && part !== "-");
     return {
       index: index + 1,
       name: name || `Passenger ${index + 1}`,
       type,
       gender,
-      seatMeal: seat === "-" && meal === "-" ? "-" : `${seat} / ${meal}`,
+      seatMeal: extras.length ? extras.join(" / ") : "-",
     };
   });
 }
@@ -379,14 +420,16 @@ export function ticketFromBooking(
   const fare = booking?.selectedFare || catalog?.selectedFare || null;
   const payable = booking?.payable || {};
   const currency = String(payable.currency || "INR");
-  const people = personRows(booking?.travellers);
+  const people = personRows(booking?.travellers, booking?.addOns || booking?.flightAddOns);
   const from = catalog?.from || {};
   const to = catalog?.to || {};
 
   return {
     filename: `APL-E-Ticket-${sanitize(booking?.reference || "booking") || "booking"}.pdf`,
     reference: String(booking?.reference || "-"),
-    status: "CONFIRMED / TICKETED - ONLINE",
+    supplierPnr: booking?.supplierPnr ? String(booking.supplierPnr) : "",
+    status: "TEST / MOCK BOOKING",
+    mockBooking: true,
     company: {
       name: brand?.name || "APL Travel",
       address: brand?.address || "123, Noida, Uttar Pradesh, India - 201301",
@@ -425,6 +468,25 @@ export function ticketFromBooking(
         date: prettyDate(to.date || query.depart),
       },
     },
+    returnFlight: catalog?.returnLeg
+      ? {
+          airline: String(catalog.returnLeg.airline || "-"),
+          flightNumber: String(catalog.returnLeg.flightNumber || "-"),
+          pnr: String(booking?.returnPnr || ""),
+          from: {
+            city: String(catalog.returnLeg.from?.city || "-"),
+            code: String(catalog.returnLeg.from?.code || "-"),
+            time: String(catalog.returnLeg.from?.time || "-"),
+            date: prettyDate(catalog.returnLeg.from?.date || query.return),
+          },
+          to: {
+            city: String(catalog.returnLeg.to?.city || "-"),
+            code: String(catalog.returnLeg.to?.code || "-"),
+            time: String(catalog.returnLeg.to?.time || "-"),
+            date: prettyDate(catalog.returnLeg.to?.date || query.return),
+          },
+        }
+      : undefined,
     hotel: {
       name: catalog?.name || booking?.title || "-",
       address: catalog?.address || catalog?.location || "-",
@@ -527,10 +589,25 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
   commands.push(textInBox("F1", 7.5, companyX, PAGE_HEIGHT - 44, company.address, companyW, "0.85 0.95 0.97"));
   commands.push(textInBox("F1", 7.5, companyX, PAGE_HEIGHT - 56, company.email, companyW, "0.85 0.95 0.97"));
   commands.push(
-    textInBox("F2", 9, companyX, PAGE_HEIGHT - 70, `PNR / Booking: ${doc.reference || "-"}`, companyW, "1 1 1"),
+    textInBox("F2", 9, companyX, PAGE_HEIGHT - 70, `PNR / Booking: ${doc.supplierPnr || doc.reference || "-"}`, companyW, "1 1 1"),
   );
 
   let y = PAGE_HEIGHT - headerH - 16;
+  if (doc.mockBooking !== false && doc.service === "flight") {
+    commands.push(rect(MARGIN, y - 18, CONTENT_W, 18, "0.98 0.9 0.86"));
+    commands.push(
+      textInBox(
+        "F2",
+        8,
+        MARGIN + 8,
+        y - 13,
+        "TEST / MOCK BOOKING — not a valid airline ticket",
+        CONTENT_W - 16,
+        "0.55 0.2 0.05",
+      ),
+    );
+    y -= 26;
+  }
 
   // ── Verification + status (fixed height) ─────────────────────────
   const verifyH = 96;
@@ -636,6 +713,18 @@ export function buildTicketPdfBytes(doc: TicketDocument) {
       ),
     );
     y -= cardH + 14;
+    if (doc.returnFlight) {
+      const back = doc.returnFlight;
+      commands.push(text(
+        "F1",
+        8,
+        MARGIN,
+        y,
+        `Return ${back.from?.code || "-"} ${back.from?.time || ""} -> ${back.to?.code || "-"} ${back.to?.time || ""} · ${back.flightNumber || "-"} · ${back.pnr || "PNR pending"}`,
+        muted,
+      ));
+      y -= 16;
+    }
   } else if (doc.service === "hotel") {
     const hotel = doc.hotel;
     const cardH = 72;

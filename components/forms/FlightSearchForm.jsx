@@ -95,6 +95,9 @@ export default function FlightSearchForm({
   const [fareType, setFareType] = useState(
     () => initialValues?.fareType || "normal",
   );
+  const [cabinClass, setCabinClass] = useState(
+    () => initialValues?.cabinClass || "ECONOMY",
+  );
 
   const loadCities = useCallback(async (query) => {
     const cities = await searchAirports(query);
@@ -133,6 +136,15 @@ export default function FlightSearchForm({
     if (tripType === "return" && !returnDate) {
       return "Choose a return date.";
     }
+    if (travellers.infants > travellers.adults) {
+      return "Infants cannot exceed the number of adults.";
+    }
+    if (isBeforeDay(departDate, today())) {
+      return "Departure cannot be in the past.";
+    }
+    if (tripType === "return" && returnDate && isBeforeDay(returnDate, departDate)) {
+      return "Return cannot be before departure.";
+    }
     return "";
   })();
 
@@ -160,6 +172,7 @@ export default function FlightSearchForm({
         children: travellers.children,
         infants: travellers.infants,
         fareType,
+        cabinClass,
         error: searchError,
       }),
     );
@@ -174,6 +187,7 @@ export default function FlightSearchForm({
     legs,
     travellers,
     fareType,
+    cabinClass,
     searchError,
     onSearchChange,
   ]);
@@ -274,6 +288,20 @@ export default function FlightSearchForm({
           </h2>
         ) : null}
         <TripTypeToggle value={tripType} onChange={selectTrip} />
+        <label className="search-cabin" style={{ marginLeft: 12 }}>
+          <span className="sr-only">Cabin class</span>
+          <select
+            aria-label="Cabin class"
+            value={cabinClass}
+            onChange={(event) => setCabinClass(event.target.value)}
+            style={{ height: 36, borderRadius: 8, padding: "0 8px" }}
+          >
+            <option value="ECONOMY">Economy</option>
+            <option value="PREMIUM_ECONOMY">Premium Economy</option>
+            <option value="BUSINESS">Business</option>
+            <option value="FIRST">First</option>
+          </select>
+        </label>
       </div>
 
       {tripType === "multi" ? (
@@ -426,6 +454,8 @@ export default function FlightSearchForm({
             label="Depart"
             value={departDate}
             minDate={today()}
+            rangeStart={departDate}
+            rangeEnd={returnDate}
             onChange={handleDepartChange}
           />
 
@@ -434,6 +464,8 @@ export default function FlightSearchForm({
             label="Return"
             value={returnDate}
             minDate={departDate}
+            rangeStart={departDate}
+            rangeEnd={returnDate}
             placeholder="Add return"
             onChange={handleReturnChange}
           />

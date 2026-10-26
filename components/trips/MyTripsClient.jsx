@@ -68,6 +68,26 @@ function TripCard({ booking }) {
           <dt>Amount</dt>
           <dd>{booking.payable?.totalPayableLabel || "—"}</dd>
         </div>
+        {booking.service === "bus" && booking.itinerary?.boardingPoint?.name ? (
+          <div>
+            <dt>Boarding</dt>
+            <dd>
+              {[booking.itinerary.boardingPoint.name, booking.itinerary.boardingPoint.code, booking.itinerary.boardingPoint.time]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </div>
+        ) : null}
+        {booking.service === "bus" && booking.itinerary?.droppingPoint?.name ? (
+          <div>
+            <dt>Dropping</dt>
+            <dd>
+              {[booking.itinerary.droppingPoint.name, booking.itinerary.droppingPoint.code, booking.itinerary.droppingPoint.time]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className="trip-card-actions">

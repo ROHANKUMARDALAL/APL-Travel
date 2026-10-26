@@ -276,7 +276,16 @@ export function HotelMainDetails({
   );
 }
 
-export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggleSeat, seatMessage }) {
+export function BusMainDetails({
+  item,
+  searchQuery,
+  selectedSeats = [],
+  onToggleSeat,
+  seatMessage,
+  boardingPoint,
+  droppingPoint,
+  onChangePoints,
+}) {
   const marketId = getActiveMarketId();
 
   return (
@@ -310,14 +319,28 @@ export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggle
         </div>
       </div>
 
+      <div className="bus-selected-points">
+        <article>
+          <p className="result-card-kicker">Boarding</p>
+          <strong>{boardingPoint?.name || "Not selected"}</strong>
+          <p>{[boardingPoint?.address, boardingPoint?.landmark].filter(Boolean).join(" · ")}</p>
+        </article>
+        <article>
+          <p className="result-card-kicker">Dropping</p>
+          <strong>{droppingPoint?.name || "Not selected"}</strong>
+          <p>{[droppingPoint?.address, droppingPoint?.landmark].filter(Boolean).join(" · ")}</p>
+        </article>
+        <button type="button" className="btn-ghost" onClick={onChangePoints}>Change points</button>
+      </div>
+
       <dl className="detail-facts">
         <div>
-          <dt>Boarding</dt>
-          <dd>{item.boarding}</dd>
+          <dt>Available boarding</dt>
+          <dd>{(item.boardingPoints || []).map((point) => point.name).join(" · ") || item.boarding}</dd>
         </div>
         <div>
-          <dt>Drop-off</dt>
-          <dd>{item.dropOff}</dd>
+          <dt>Available drop-off</dt>
+          <dd>{(item.droppingPoints || []).map((point) => point.name).join(" · ") || item.dropOff}</dd>
         </div>
         <div>
           <dt>Amenities</dt>
@@ -346,7 +369,7 @@ export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggle
           <div key={`row-${rowIndex}`} className="seat-row">
             {row.map((seat, seatIndex) => {
               if (!seat) return <span key={`aisle-${rowIndex}-${seatIndex}`} className="seat-aisle" />;
-              const taken = BUS_TAKEN_SEATS.includes(seat);
+              const taken = (item.takenSeats?.length ? item.takenSeats : BUS_TAKEN_SEATS).includes(seat);
               const selected = selectedSeats.includes(seat);
               const full = !selected && selectedSeats.length >= MAX_BUS_SEATS;
               return (
@@ -374,76 +397,83 @@ export function BusMainDetails({ item, searchQuery, selectedSeats = [], onToggle
   );
 }
 
-export function TransferMainDetails({ item, searchQuery }) {
+export function TransferMainDetails({ item, searchQuery, fareNotice, pickupPoint, onPickupPoint }) {
   const marketId = getActiveMarketId();
   const pickupName = item.pickup?.name || searchQuery.pickup || "Pickup";
   const dropoffName = item.dropoff?.name || searchQuery.dropoff || "Drop-off";
   const timeLabel = searchQuery.time || item.pickupDateTime?.slice(11, 16) || "";
+  const tripLabel = searchQuery.tripType === "OUTSTATION"
+    ? "Outstation"
+    : searchQuery.tripType === "LOCAL"
+      ? "Local"
+      : "Airport transfer";
+  const currency = Object.keys(item.prices || {})[0] || item.quote?.currency || "INR";
+  const parts = item.prices?.[currency] || { base: item.quote?.amount || 0, taxes: 0, total: item.quote?.amount || 0 };
+  const ac = item.airConditioned == null ? null : item.airConditioned ? "AC" : "Non-AC";
+  const airportTrip = tripLabel === "Airport transfer" || item.pickup?.kind === "AIRPORT" || item.dropoff?.kind === "AIRPORT";
 
   return (
-    <section className="booking-section" id="details">
-      <p className="result-card-kicker">{item.vehicleCategory}</p>
-      <h1 className="booking-title">
-        {pickupName} → {dropoffName}
-      </h1>
-      <p className="booking-meta">
-        {formatShortDate(searchQuery.date, marketId)}
-        {timeLabel ? ` · ${timeLabel}` : ""}
-        {item.estimatedDurationMinutes
-          ? ` · ~${formatDuration(item.estimatedDurationMinutes)}`
-          : ""}
-      </p>
-
-      <div className="itinerary-card">
-        <div className="flight-timeline">
-          <div>
-            <p className="flight-time">{timeLabel || "—"}</p>
-            <p className="flight-code">{item.pickup?.kind || searchQuery.pickupKind || "PICKUP"}</p>
-            <p className="result-card-meta">{pickupName}</p>
-          </div>
-          <div className="flight-duration-wrap">
-            <p className="flight-duration">
-              {item.estimatedDurationMinutes
-                ? formatDuration(item.estimatedDurationMinutes)
-                : "Transfer"}
-            </p>
-            <div className="flight-line" aria-hidden="true" />
-            <p className="flight-stops">{item.vehicleName}</p>
-          </div>
-          <div>
-            <p className="flight-time">—</p>
-            <p className="flight-code">{item.dropoff?.kind || searchQuery.dropoffKind || "DROPOFF"}</p>
-            <p className="result-card-meta">{dropoffName}</p>
-          </div>
-        </div>
+    <section className="booking-section cab-review" id="details">
+      <p className="result-card-kicker">Cab review</p>
+      <h1 className="booking-title">{pickupName} → {dropoffName}</h1>
+      <div className="cab-review-grid">
+        <article className="cab-panel">
+          <h2>Trip summary</h2>
+          {pickupPoint?.name ? <p>Pickup point: {pickupPoint.name}</p> : null}
+          <dl>
+            <div><dt>Pickup</dt><dd>{pickupName}</dd></div>
+            <div><dt>Drop</dt><dd>{dropoffName}</dd></div>
+            <div><dt>When</dt><dd>{formatShortDate(searchQuery.date, marketId)}{timeLabel ? ` · ${timeLabel}` : ""}</dd></div>
+            <div><dt>Trip type</dt><dd>{tripLabel}</dd></div>
+            {item.estimatedDurationMinutes ? <div><dt>Duration</dt><dd>{formatDuration(item.estimatedDurationMinutes)}</dd></div> : null}
+          </dl>
+        </article>
+        <article className="cab-panel cab-panel-vehicle">
+          <h2>Selected cab</h2>
+          <p className="cab-kicker">{item.vehicleCategory}{item.supplier ? ` · ${item.supplier}` : ""}</p>
+          <p className="cab-vehicle-name">{item.vehicleName}</p>
+          <ul className="cab-facts">
+            <li>Up to {item.maxPassengers} seats</li>
+            <li>Up to {item.maxLuggage} bags</li>
+            {ac ? <li>{ac}</li> : null}
+            {item.fuelType ? <li>{item.fuelType}</li> : null}
+          </ul>
+        </article>
+        <article className="cab-panel">
+          <h2>Inclusions and conditions</h2>
+          <ul className="cab-features">
+            {(item.inclusions || []).map((row) => <li key={row}>{row}</li>)}
+          </ul>
+          <p>{item.cancellation}</p>
+          <p className="price-fee-note">Extra-kilometre and waiting charges appear here only when the supplier sends them.</p>
+        </article>
+        <article className="cab-panel">
+          <h2>Price</h2>
+          <dl>
+            <div><dt>Base fare</dt><dd>{formatMoney(parts.base, marketId)}</dd></div>
+            <div><dt>Taxes and fees</dt><dd>{parts.taxes ? formatMoney(parts.taxes, marketId) : "Included in fare"}</dd></div>
+            <div><dt>Payable before payment fee</dt><dd>{formatMoney(parts.total, marketId)}</dd></div>
+          </dl>
+          {fareNotice ? <p className="field-error">{fareNotice}</p> : null}
+          <p className="price-fee-note">The payment-method fee is added on the payment step. UPI and wallet are 0%. Card is 2.5%. Net banking is 3%.</p>
+        </article>
       </div>
-
-      <dl className="detail-facts">
-        <div>
-          <dt>Vehicle</dt>
-          <dd>{item.vehicleName}</dd>
-        </div>
-        <div>
-          <dt>Passengers</dt>
-          <dd>Up to {item.maxPassengers}</dd>
-        </div>
-        <div>
-          <dt>Luggage</dt>
-          <dd>Up to {item.maxLuggage} bags</dd>
-        </div>
-        <div>
-          <dt>Inclusions</dt>
-          <dd>{(item.inclusions || []).join(" · ") || "Private vehicle"}</dd>
-        </div>
-      </dl>
-
-      <div className="fare-policy-panel">
-        <h2 className="booking-subsection-title">Cancellation policy</h2>
-        <p className="result-card-policy">{item.cancellation}</p>
-        <p className="price-fee-note">
-          Final customer price is confirmed at checkout. Optional flight number and pickup notes can be added for the driver.
-        </p>
-      </div>
+      {(item.pickupPoints || []).length ? (
+        <fieldset className="cab-points">
+          <legend>Pickup point</legend>
+          {(item.pickupPoints || []).map((point) => (
+            <label key={point.code}>
+              <input
+                type="radio"
+                name="cab-pickup-point"
+                checked={pickupPoint?.code === point.code}
+                onChange={() => onPickupPoint?.(point)}
+              />
+              {point.name}
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
     </section>
   );
 }

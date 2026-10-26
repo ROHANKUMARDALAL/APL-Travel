@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { id: "profile", label: "Profile", href: "/account" },
   { id: "trips", label: "My Trips", href: "/my-trips" },
   { id: "wallet", label: "My Wallet", href: "/account/wallet" },
+  { id: "transactions", label: "All Transactions", href: "/account/transactions" },
   { id: "referral", label: "Referral Code", href: "/account/referral" },
   { id: "travellers", label: "My traveller list", href: "/account/travellers" },
   { id: "support", label: "Support", href: "/support" },

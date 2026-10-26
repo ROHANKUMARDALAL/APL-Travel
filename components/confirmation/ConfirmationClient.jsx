@@ -177,7 +177,7 @@ export default function ConfirmationClient() {
       <div className="container-page confirmation-page">
         <BookingProgress current="confirm" backHref="/my-trips" />
         <div className="confirmation-hero">
-          <p className="confirmation-kicker">Booking confirmed</p>
+          <p className="confirmation-kicker">{service === "insurance" || confirmation.demo ? "DEMO / MOCK booking" : "Booking confirmed"}</p>
           <h1 className="section-title">You’re all set</h1>
           <div className="confirmation-status-row">
             <span className="status-pill is-confirmed">Booking status: Confirmed</span>
@@ -192,6 +192,9 @@ export default function ConfirmationClient() {
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
+          {service === "insurance" || confirmation.demo ? (
+            <p className="price-fee-note">DEMO / MOCK. This is not an insurance policy, certificate, or real coverage, and no insurer charge was made.</p>
+          ) : null}
         </div>
 
         <div className="confirmation-grid">
@@ -207,7 +210,11 @@ export default function ConfirmationClient() {
                     ? item.name
                     : service === "flight"
                       ? `${item.from.code} → ${item.to.code}`
-                      : `${item.from.city} → ${item.to.city}`}
+                      : service === "transfer"
+                        ? `${item.pickup?.name || query.pickup || "Pickup"} → ${item.dropoff?.name || query.dropoff || "Drop-off"}`
+                        : item?.from?.city && item?.to?.city
+                          ? `${item.from.city} → ${item.to.city}`
+                          : item?.title || "Booking"}
                 </h3>
                 <dl className="checkout-fact-list">
                   {service === "flight" ? (
@@ -238,6 +245,22 @@ export default function ConfirmationClient() {
                           {formatShortDate(query.checkIn, marketId)} →{" "}
                           {formatShortDate(query.checkOut, marketId)}
                         </dd>
+                      </div>
+                    </>
+                  ) : null}
+                  {service === "transfer" ? (
+                    <>
+                      <div>
+                        <dt>Vehicle</dt>
+                        <dd>{item.vehicleName || item.vehicleCategory || "Cab"}</dd>
+                      </div>
+                      <div>
+                        <dt>Pickup point</dt>
+                        <dd>{confirmation.pickupPoint?.name || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>When</dt>
+                        <dd>{formatShortDate(query.date, marketId)} {query.time || ""}</dd>
                       </div>
                     </>
                   ) : null}
