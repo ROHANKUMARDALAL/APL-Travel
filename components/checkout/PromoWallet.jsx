@@ -143,14 +143,8 @@ export function PromoCodeField({ promo, onApply, onRemove, service = "flight", s
   );
 }
 
-export function WalletCredit({
-  balance,
-  applied,
-  maxApplicable,
-  onChangeApplied,
-}) {
+export function WalletCredit({ balance }) {
   const marketId = getActiveMarketId();
-  const enabled = applied > 0;
 
   return (
     <section className="checkout-section">
@@ -160,34 +154,12 @@ export function WalletCredit({
         (customer wallet)
       </p>
       <label className="wallet-toggle">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => {
-            if (e.target.checked) {
-              onChangeApplied(Math.min(balance, maxApplicable));
-            } else {
-              onChangeApplied(0);
-            }
-          }}
-        />
+        <input type="checkbox" checked={false} disabled />
         <span>Apply wallet credit to this booking</span>
       </label>
-      {enabled ? (
-        <label className="filter-range wallet-range">
-          <span className="field-label">Amount to apply</span>
-          <input
-            type="range"
-            min={0}
-            max={Math.min(balance, maxApplicable) || 0}
-            value={Math.min(applied, maxApplicable)}
-            onChange={(e) => onChangeApplied(Number(e.target.value))}
-          />
-          <span className="filter-range-value">
-            {formatMoney(Math.min(applied, maxApplicable), marketId)}
-          </span>
-        </label>
-      ) : null}
+      <p className="result-card-meta">
+        Partial wallet plus another payment method is not available. Choose Customer wallet only when it covers the full booking amount.
+      </p>
     </section>
   );
 }

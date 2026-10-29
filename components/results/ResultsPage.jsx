@@ -21,6 +21,7 @@ import FlightSearchForm from "@/components/forms/FlightSearchForm";
 import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
 import TransferSearchForm from "@/components/forms/TransferSearchForm";
+import { CAB_TIME_ZONE, isPickupAllowed } from "@/lib/cabPickupLead";
 import { formatMoney, getActiveMarketId, getActiveCurrencyCode } from "@/data/markets";
 import { flightBadges, hasCheckedBag } from "@/lib/flightResultMarks.mjs";
 import { saveBusPoints } from "@/lib/busPoints";
@@ -45,6 +46,7 @@ import {
   TIME_BUCKETS,
 } from "@/lib/resultsHelpers";
 import { searchFlights, searchHotels, searchBuses, searchTransfers } from "@/lib/api/search";
+import { useActiveTheme } from "@/components/themes/useActiveTheme";
 import {
   cacheSearchResults,
   readSearchResults,
@@ -182,6 +184,7 @@ function queryObjectFromParams(service, searchParams) {
 }
 
 export default function ResultsPage({ service }) {
+  const theme = useActiveTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
   const marketId = getActiveMarketId();
@@ -535,7 +538,12 @@ export default function ResultsPage({ service }) {
 
   function handleModifySubmit(event) {
     event.preventDefault();
-    if (!modifyPayload || modifyPayload.error) return;
+    if (!modifyPayload) return;
+    if (service === "transfer") {
+      window.dispatchEvent(new Event("apl-cab-clock"));
+      if (!isPickupAllowed(modifyPayload.date, modifyPayload.time, new Date(), modifyPayload.timeZone || CAB_TIME_ZONE)) return;
+    }
+    if (modifyPayload.error) return;
     router.push(buildResultsHref(service, modifyPayload));
     setModifyOpen(false);
   }
@@ -546,8 +554,18 @@ export default function ResultsPage({ service }) {
 
   return (
     <SiteChrome activeService={service}>
-      <div className="results-page">
+      <div className={`results-page theme-${theme}`}>
         <div className="container-page results-page-inner">
+          {service === "flight" && theme === "MODERN_EXPLORER" ? (
+            <div className="results-toolbar" aria-label="Flight timeline">
+              <strong>Timeline results</strong>
+            </div>
+          ) : null}
+          {service === "flight" && theme === "LUXURY_ESCAPE" ? (
+            <div className="results-toolbar" aria-label="Premium flight results">
+              <strong>Cabin selection</strong>
+            </div>
+          ) : null}
           <BookingProgress current="results" backHref={homeHref} />
           <SearchSummary
             className={service === "flight" ? "is-flight-bar" : ""}
@@ -587,12 +605,19 @@ export default function ResultsPage({ service }) {
                     key={`transfer-${searchParams.toString()}`}
                     initialValues={formInitialValues}
                     onSearchChange={handleModifyChange}
+                    submit={(
+                      <button type="submit" className="home-search-btn is-cab cab-inline-search">
+                        Update search
+                      </button>
+                    )}
                   />
                 ) : null}
                 <div className="modify-search-actions">
-                  <button type="submit" className="btn-primary">
-                    Update search
-                  </button>
+                  {service === "transfer" ? null : (
+                    <button type="submit" className="btn-primary">
+                      Update search
+                    </button>
+                  )}
                   <a className="btn-ghost" href={homeHref}>
                     Open on homepage
                   </a>

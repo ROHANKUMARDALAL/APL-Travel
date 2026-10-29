@@ -5,6 +5,7 @@ import DatePicker, { addDays, today } from "@/components/ui/DatePicker";
 import LocationSuggest from "@/components/ui/LocationSuggest";
 import TravellerPicker from "@/components/ui/TravellerPicker";
 import FareTypeSelect from "@/components/ui/FareTypeSelect";
+import PremiumSelect from "@/components/ui/PremiumSelect";
 import TripTypeToggle from "@/components/forms/TripTypeToggle";
 import { isBeforeDay, startOfDay } from "@/lib/dateUtils";
 import { buildFlightSearchQuery, fromDateParam } from "@/lib/searchQuery";
@@ -288,20 +289,20 @@ export default function FlightSearchForm({
           </h2>
         ) : null}
         <TripTypeToggle value={tripType} onChange={selectTrip} />
-        <label className="search-cabin" style={{ marginLeft: 12 }}>
-          <span className="sr-only">Cabin class</span>
-          <select
-            aria-label="Cabin class"
-            value={cabinClass}
-            onChange={(event) => setCabinClass(event.target.value)}
-            style={{ height: 36, borderRadius: 8, padding: "0 8px" }}
-          >
-            <option value="ECONOMY">Economy</option>
-            <option value="PREMIUM_ECONOMY">Premium Economy</option>
-            <option value="BUSINESS">Business</option>
-            <option value="FIRST">First</option>
-          </select>
-        </label>
+        <PremiumSelect
+          className="search-cabin"
+          label="Cabin class"
+          labelHidden
+          ariaLabel="Cabin class"
+          value={cabinClass}
+          onChange={setCabinClass}
+          options={[
+            { value: "ECONOMY", label: "Economy" },
+            { value: "PREMIUM_ECONOMY", label: "Premium Economy" },
+            { value: "BUSINESS", label: "Business" },
+            { value: "FIRST", label: "First Class" },
+          ]}
+        />
       </div>
 
       {tripType === "multi" ? (

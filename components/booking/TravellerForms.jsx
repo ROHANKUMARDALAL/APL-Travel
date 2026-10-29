@@ -1,6 +1,7 @@
 "use client";
 
 import DatePicker from "@/components/ui/DatePicker";
+import PremiumSelect from "@/components/ui/PremiumSelect";
 import { today } from "@/lib/dateUtils";
 import { dobBoundsForType, dobErrorForType } from "@/lib/travellerAge";
 
@@ -173,24 +174,19 @@ export function FlightTravellerForm({
           </h3>
           <ChooseTravellerButton onClick={onSelectSaved ? () => onSelectSaved(person) : null} />
           <div className="booking-form-grid">
-            <div className="search-field">
-              <label className="field-label" htmlFor={`title-${person.id}`}>
-                Title
-              </label>
-              <select
-                id={`title-${person.id}`}
-                className="field-select"
-                value={person.title}
-                onChange={(e) =>
-                  onChangeTraveller(person.id, { title: e.target.value })
-                }
-              >
-                <option value="Mr">Mr</option>
-                <option value="Ms">Ms</option>
-                <option value="Mrs">Mrs</option>
-                <option value="Mx">Mx</option>
-              </select>
-            </div>
+            <PremiumSelect
+              id={`title-${person.id}`}
+              label="Title"
+              className="booking-premium-select"
+              value={person.title || "Mr"}
+              options={[
+                { value: "Mr", label: "Mr" },
+                { value: "Ms", label: "Ms" },
+                { value: "Mrs", label: "Mrs" },
+                { value: "Mx", label: "Mx" },
+              ]}
+              onChange={(title) => onChangeTraveller(person.id, { title })}
+            />
             <div className="search-field">
               <label className="field-label" htmlFor={`first-${person.id}`}>
                 First name
@@ -231,22 +227,20 @@ export function FlightTravellerForm({
               onChange={(dob) => onChangeTraveller(person.id, { dob })}
             />
             <div className="search-field">
-              <label className="field-label" htmlFor={`gender-${person.id}`}>
-                Gender
-              </label>
-              <select
+              <PremiumSelect
                 id={`gender-${person.id}`}
-                className="field-select"
-                value={person.gender}
-                onChange={(e) =>
-                  onChangeTraveller(person.id, { gender: e.target.value })
-                }
-              >
-                <option value="">Select</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="unspecified">Prefer not to say</option>
-              </select>
+                label="Gender"
+                className="booking-premium-select"
+                value={person.gender || ""}
+                placeholder="Select"
+                options={[
+                  { value: "", label: "Select" },
+                  { value: "male", label: "Male" },
+                  { value: "female", label: "Female" },
+                  { value: "unspecified", label: "Prefer not to say" },
+                ]}
+                onChange={(gender) => onChangeTraveller(person.id, { gender })}
+              />
               <FieldError message={errors[`${person.id}-gender`]} />
             </div>
             <div className="search-field">

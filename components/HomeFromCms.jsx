@@ -46,16 +46,11 @@ export default function HomeFromCms({ activeService }) {
                     </div>
                   </>
                 );
-                const className = "offer-card home-rise block h-full overflow-hidden";
-                const style = { animationDelay: `${index * 70}ms` };
-                return banner.linkUrl ? (
-                  <a key={`${banner.title}-${banner.displayOrder}`} className={className} style={style} href={banner.linkUrl}>
+                const className = "offer-card block h-full overflow-hidden";
+                return (
+                  <Reveal key={`${banner.title}-${banner.displayOrder}`} as={banner.linkUrl ? "a" : "article"} href={banner.linkUrl || undefined} className={className} delay={index * 100}>
                     {card}
-                  </a>
-                ) : (
-                  <article key={`${banner.title}-${banner.displayOrder}`} className={className} style={style}>
-                    {card}
-                  </article>
+                  </Reveal>
                 );
               })}
             </div>
@@ -78,7 +73,7 @@ export default function HomeFromCms({ activeService }) {
                   ? `${published.getUTCDate()} ${months[published.getUTCMonth()]} ${published.getUTCFullYear()}`
                   : "";
                 return (
-                  <li key={post.slug} className="home-rise" style={{ animationDelay: `${index * 70}ms` }}>
+                  <Reveal as="li" key={post.slug} delay={index * 100}>
                     <Link href={`/blogs/${post.slug}`} className="home-post">
                       <span className="home-post-media"><BlogCover post={post} /></span>
                       <span className="home-post-body">
@@ -91,7 +86,7 @@ export default function HomeFromCms({ activeService }) {
                         <span className="home-post-more">Read more</span>
                       </span>
                     </Link>
-                  </li>
+                  </Reveal>
                 );
               })}
             </ul>

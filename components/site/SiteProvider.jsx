@@ -10,6 +10,7 @@ export function SiteProvider({ initialConfig, children }) {
     const cfg = initialConfig || {};
     return {
       source: cfg.source || "legacy",
+      theme: cfg.theme || { code: "CLASSIC_TRAVEL", name: "Classic Travel", preview: false },
       tenant: cfg.tenant || { code: "", displayName: FOOTER.brand },
       branding: cfg.branding || {
         websiteName: FOOTER.brand,

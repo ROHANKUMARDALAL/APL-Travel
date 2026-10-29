@@ -10,6 +10,7 @@ import BookingSummaryCard, {
 import { PromoCodeField, WalletCredit } from "@/components/checkout/PromoWallet";
 import PaymentMethods from "@/components/checkout/PaymentMethods";
 import { CheckoutPricePanel, FinalReview } from "@/components/checkout/FinalReview";
+import { useActiveTheme } from "@/components/themes/useActiveTheme";
 import {
   buildResultsReturnHref,
   calcBookingTotals,
@@ -64,13 +65,15 @@ function buildDetailsHref(service, searchParams, draft) {
 export default function CheckoutPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const theme = useActiveTheme();
   const marketId = getActiveMarketId();
   const [draft, setDraft] = useState(null);
   const [ready, setReady] = useState(false);
 
   const [promo, setPromo] = useState(null);
   const [usedCodes, setUsedCodes] = useState([]);
-  const [walletApplied, setWalletApplied] = useState(0);
+  const walletApplied = 0;
+  const [pendingWallet, setPendingWallet] = useState(0);
   const [method, setMethod] = useState("upi");
   const [customerWallet, setCustomerWallet] = useState(0);
   const [card, setCard] = useState({
@@ -291,29 +294,27 @@ export default function CheckoutPageClient() {
     });
   }, [draft, service, nights, promo, walletApplied, marketId, method]);
 
-  const maxWallet = Math.min(
-    walletBalance,
-    Math.max(
-      0,
-      payable.base + payable.taxes + payable.serviceFee + payable.extras - payable.discount,
-    ),
-  );
-
-  useEffect(() => {
-    if (walletApplied > maxWallet) setWalletApplied(maxWallet);
-  }, [walletApplied, maxWallet]);
-
   useEffect(() => {
     let ignore = false;
-    loadWallet(marketId)
-      .then((wallet) => {
-        if (!ignore) setCustomerWallet(Number(wallet.balance) || 0);
-      })
-      .catch(() => {
-        if (!ignore) setCustomerWallet(0);
-      });
+    function load() {
+      loadWallet(marketId)
+        .then((wallet) => {
+          if (ignore) return;
+          setCustomerWallet(Number(wallet.balance) || 0);
+          const pending = (wallet.transactions || [])
+            .filter((row) => row.status === "pending")
+            .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+          setPendingWallet(pending);
+        })
+        .catch(() => {
+          if (!ignore) setCustomerWallet(0);
+        });
+    }
+    load();
+    window.addEventListener("focus", load);
     return () => {
       ignore = true;
+      window.removeEventListener("focus", load);
     };
   }, [marketId]);
 
@@ -334,7 +335,20 @@ export default function CheckoutPageClient() {
   if (!ready) {
     return (
       <CheckoutShell>
-        <div className="container-page checkout-page">
+        <div className={`container-page checkout-page theme-${theme}`}>
+          {theme === "MODERN_EXPLORER" ? (
+            <ol className="theme-steps">
+              <li>Travellers</li>
+              <li className="is-current">Payment</li>
+              <li>Confirm</li>
+            </ol>
+          ) : null}
+          {theme === "LUXURY_ESCAPE" ? (
+            <header className="lx-review">
+              <h1>Booking review</h1>
+              <p>Private checkout</p>
+            </header>
+          ) : null}
           <p className="section-copy">Loading checkout…</p>
         </div>
       </CheckoutShell>
@@ -344,7 +358,20 @@ export default function CheckoutPageClient() {
   if (!draft || !item) {
     return (
       <CheckoutShell>
-        <div className="container-page checkout-page">
+        <div className={`container-page checkout-page theme-${theme}`}>
+          {theme === "MODERN_EXPLORER" ? (
+            <ol className="theme-steps">
+              <li>Travellers</li>
+              <li className="is-current">Payment</li>
+              <li>Confirm</li>
+            </ol>
+          ) : null}
+          {theme === "LUXURY_ESCAPE" ? (
+            <header className="lx-review">
+              <h1>Booking review</h1>
+              <p>Private checkout</p>
+            </header>
+          ) : null}
           <CheckoutProgress current="payment" backHref="/" />
           <div className="booking-not-found">
             <h1 className="section-title">Checkout session missing</h1>
@@ -373,6 +400,8 @@ export default function CheckoutPageClient() {
   const detailsHref = buildDetailsHref(service, searchParams, draft);
   const resultsHref = buildResultsReturnHref(service, draft.searchQuery);
   const payLabel = `Pay Now · ${payable.totalPayableLabel}`;
+  const walletBlocked = method === "wallet"
+    && Math.round(customerWallet * 100) < Math.round((payable?.totalPayable || 0) * 100);
 
   function validateCheckout() {
     const next = {};
@@ -390,8 +419,8 @@ export default function CheckoutPageClient() {
     if (method === "card") {
       Object.assign(next, validateCardFields(card));
     }
-    if (method === "wallet" && customerWallet < payable.totalPayable) {
-      next.wallet = "Customer wallet balance is not enough for this payment";
+    if (method === "wallet" && Math.round(customerWallet * 100) < Math.round(payable.totalPayable * 100)) {
+      next.wallet = "Your booking amount exceeds your available wallet balance. Please add money to your wallet or choose another payment method.";
     }
     if (!accepted.terms || !accepted.cancellation || !accepted.privacy) {
       next.legal = "Please accept the required policies to continue";
@@ -745,8 +774,21 @@ export default function CheckoutPageClient() {
 
   return (
     <CheckoutShell>
-      <div className="checkout-page">
+      <div className={`checkout-page theme-${theme}`}>
         <div className="container-page checkout-page-inner">
+          {theme === "MODERN_EXPLORER" ? (
+            <ol className="theme-steps">
+              <li>Travellers</li>
+              <li className="is-current">Payment</li>
+              <li>Confirm</li>
+            </ol>
+          ) : null}
+          {theme === "LUXURY_ESCAPE" ? (
+            <header className="lx-review">
+              <h1>Booking review</h1>
+              <p>Private checkout</p>
+            </header>
+          ) : null}
           <CheckoutProgress current="payment" backHref={detailsHref} />
           <h1 className="section-title">Secure checkout</h1>
           <p className="section-copy">
@@ -763,7 +805,7 @@ export default function CheckoutPageClient() {
                 nights={service === "hotel" ? nights : 1}
                 payLabel={payLabel}
                 onPay={handlePay}
-                disabled={processing}
+                disabled={processing || walletBlocked}
                 processing={processing}
                 fareLabel={
                   service === "flight"
@@ -819,12 +861,7 @@ export default function CheckoutPageClient() {
                   setPromo(null);
                 }}
               />
-              <WalletCredit
-                balance={walletBalance}
-                applied={walletApplied}
-                maxApplicable={maxWallet || walletBalance}
-                onChangeApplied={setWalletApplied}
-              />
+              <WalletCredit balance={walletBalance} />
               <PaymentMethods
                 method={method}
                 onMethodChange={setMethod}
@@ -833,6 +870,10 @@ export default function CheckoutPageClient() {
                 errors={errors}
                 forceFail={forceFail}
                 onForceFailChange={setForceFail}
+                walletBalance={walletBalance}
+                payableAmount={payable.totalPayable}
+                currency={payable.currency}
+                pendingWallet={pendingWallet}
               />
               <FinalReview
                 service={service}
@@ -857,7 +898,7 @@ export default function CheckoutPageClient() {
               nights={service === "hotel" ? nights : 1}
               payLabel={payLabel}
               onPay={handlePay}
-              disabled={processing}
+              disabled={processing || walletBlocked}
               processing={processing}
               fareLabel={
                 service === "flight"

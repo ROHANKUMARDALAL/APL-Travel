@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { formatCardNumber, formatExpiry } from "@/lib/mockPayment";
+import { formatMoney, getActiveMarketId } from "@/data/markets";
 
 const METHODS = [
   { id: "upi", label: "UPI", hint: "No payment fee" },
@@ -17,7 +19,14 @@ export default function PaymentMethods({
   errors,
   forceFail,
   onForceFailChange,
+  walletBalance = 0,
+  payableAmount = 0,
+  currency = "INR",
+  pendingWallet = 0,
 }) {
+  const marketId = getActiveMarketId();
+  const shortfall = Math.max(0, Math.round((Number(payableAmount) - Number(walletBalance)) * 100) / 100);
+  const walletBlocked = method === "wallet" && shortfall > 0;
   return (
     <section className="checkout-section pay-methods-section" id="payment">
       <h2 className="checkout-section-title">Payment method</h2>
@@ -115,10 +124,23 @@ export default function PaymentMethods({
       ) : (
         <p className="pay-method-alt-note">
           {method === "wallet"
-            ? "Pays from your customer wallet on this website. Agency wallets are not used. This is a simulated APL_MOCK_PAY charge."
+            ? "Pays the full booking from your customer wallet. Agency wallets are not used. This is a simulated APL_MOCK_PAY charge."
             : `${METHODS.find((m) => m.id === method)?.label} uses a simulated APL_MOCK_PAY approval. No live gateway is contacted.`}
         </p>
       )}
+
+      {walletBlocked ? (
+        <div className="wallet-shortfall" role="alert">
+          <p>Your booking amount exceeds your available wallet balance. Please add money to your wallet or choose another payment method.</p>
+          <dl>
+            <div><dt>Available balance</dt><dd>{formatMoney(walletBalance, marketId, currency)}</dd></div>
+            <div><dt>Booking amount</dt><dd>{formatMoney(payableAmount, marketId, currency)}</dd></div>
+            <div><dt>Shortfall</dt><dd>{formatMoney(shortfall, marketId, currency)}</dd></div>
+          </dl>
+          {pendingWallet > 0 ? <p>Pending top-ups are not included in the available balance.</p> : null}
+          <Link className="btn-secondary" href="/account/wallet">Add Money</Link>
+        </div>
+      ) : null}
 
       <label className="wallet-toggle">
         <input

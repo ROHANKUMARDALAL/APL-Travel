@@ -1,5 +1,7 @@
 "use client";
 
+import PremiumSelect from "@/components/ui/PremiumSelect";
+
 export default function SortBar({
   count,
   countLabel = "result",
@@ -37,20 +39,18 @@ export default function SortBar({
             ))}
           </div>
         ) : (
-          <label className="sort-bar-label">
+          <div className="sort-bar-label">
             <span>Sort</span>
-            <select
-              className="sort-bar-select"
+            <PremiumSelect
+              label="Sort"
+              labelHidden
+              ariaLabel="Sort results"
+              className="sort-premium-select"
               value={sort}
-              onChange={(event) => onSortChange(event.target.value)}
-            >
-              {options.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={options.map((option) => ({ value: option.id, label: option.label }))}
+              onChange={onSortChange}
+            />
+          </div>
         )}
       </div>
     </div>

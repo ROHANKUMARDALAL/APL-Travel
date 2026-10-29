@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSite } from "@/components/site/SiteProvider";
+import { useActiveTheme } from "@/components/themes/useActiveTheme";
+import Reveal from "@/components/motion/Reveal";
 import {
   buildPopularBusSearch,
   buildPopularFlightSearch,
@@ -72,6 +74,8 @@ function routeHeading(serviceCode, route) {
 export function PopularFlightRoutes({ enabled, service = "flight" }) {
   const router = useRouter();
   const { branding, services } = useSite();
+  const activeTheme = useActiveTheme();
+  const editorialGrid = activeTheme === "MODERN_EXPLORER" || activeTheme === "LUXURY_ESCAPE";
   const [groups, setGroups] = useState([]);
   const [pendingId, setPendingId] = useState("");
   const [brokenImages, setBrokenImages] = useState({});
@@ -110,7 +114,7 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
   const pausedRef = useRef(false);
   const dragRef = useRef(null);
   const section = visible[0];
-  const loop = Boolean(section && section.routes.length >= 4);
+  const loop = Boolean(section && section.routes.length >= 4) && !editorialGrid;
 
   useEffect(() => {
     const node = scrollerRef.current;
@@ -162,14 +166,14 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
       onFocus={() => { pausedRef.current = true; }}
       onBlur={() => { pausedRef.current = false; }}
     >
-      <div className="home-rise">
+      <Reveal>
         <p className="popular-routes-kicker">
           <span aria-hidden="true">{section.section.icon}</span>
           {section.section.kicker}
         </p>
         <h2 className="popular-routes-title">{section.section.title}</h2>
         <p className="popular-routes-copy">{section.section.copy}</p>
-      </div>
+      </Reveal>
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       <div
         ref={scrollerRef}
@@ -192,11 +196,12 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
           const showImage = Boolean(route.imageUrl) && !brokenImages[route.id];
           const duplicate = loop && index >= section.routes.length;
           return (
-            <button
+            <Reveal
+              as="button"
               key={`${route.id}-${index}`}
               type="button"
-              className="route-card home-rise"
-              style={{ animationDelay: `${Math.min(index, 7) * 70}ms` }}
+              className="route-card"
+              delay={duplicate ? 0 : Math.min(index, 6) * 100}
               disabled={Boolean(pendingId)}
               aria-hidden={duplicate || undefined}
               tabIndex={duplicate ? -1 : undefined}
@@ -250,7 +255,7 @@ export function PopularFlightRoutes({ enabled, service = "flight" }) {
                   <span className="route-card-arrow" aria-hidden="true">→</span>
                 </span>
               </span>
-            </button>
+            </Reveal>
           );
         })}
       </div>

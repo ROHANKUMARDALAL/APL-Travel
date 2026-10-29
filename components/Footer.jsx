@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Reveal from "@/components/motion/Reveal";
 import { useSite } from "@/components/site/SiteProvider";
 
 function SocialGlyph({ label }) {
@@ -85,7 +86,7 @@ export default function Footer() {
           </ul>
         </section>
         {services.length ? (
-          <section>
+          <Reveal as="section" variant="up" delay={80}>
             <h2>Our Services</h2>
             <ul className="premium-service-list">
               {services.map((service) => (
@@ -94,7 +95,7 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Reveal>
         ) : null}
         {contactRows.length ? (
           <section>

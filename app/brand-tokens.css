@@ -1,0 +1,55 @@
+.home-service-pills button.is-active,
+.service-tiles button.is-active,
+.service-tiles button[aria-pressed="true"] {
+  background: var(--brand-color-1);
+  border-color: var(--brand-color-1);
+  color: var(--brand-on-1);
+}
+
+.btn-primary,
+.home-search-btn,
+.home-search-btn.is-cab,
+.home-package-primary {
+  background: var(--brand-color-5);
+  color: var(--brand-on-5);
+  border-color: transparent;
+}
+
+.btn-primary:disabled,
+.home-search-btn:disabled {
+  opacity: 0.55;
+}
+
+[data-b2c-theme="MODERN_EXPLORER"] .mx-kicker,
+[data-b2c-theme="MODERN_EXPLORER"] .results-toolbar {
+  color: var(--brand-color-1);
+}
+
+[data-b2c-theme="MODERN_EXPLORER"] .mx-title span,
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-title span,
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-kicker {
+  color: var(--brand-color-3);
+  background: none;
+}
+
+[data-b2c-theme="MODERN_EXPLORER"] .theme-steps .is-current,
+[data-b2c-theme="LUXURY_ESCAPE"] .utility-bar,
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-service-pills button.is-active {
+  background: var(--brand-color-2);
+  color: var(--brand-on-1);
+}
+
+[data-b2c-theme="MODERN_EXPLORER"],
+[data-b2c-theme="LUXURY_ESCAPE"],
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-search-panel {
+  background: var(--brand-color-4);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-search-btn,
+[data-b2c-theme="MODERN_EXPLORER"] .theme-modern-home .home-search-btn,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .flight-form-grid .city-swap-btn,
+[data-b2c-theme="MODERN_EXPLORER"] .theme-modern-home .flight-form-grid .city-swap-btn {
+  background: var(--brand-color-5);
+  color: var(--brand-on-5);
+}

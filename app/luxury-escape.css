@@ -1,0 +1,329 @@
+[data-b2c-theme="LUXURY_ESCAPE"] {
+  background: #f6f1e8;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .utility-bar {
+  background: #0b1f3a;
+  color: #f7f1e6;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema {
+  position: relative;
+  min-height: 560px;
+  margin: 0;
+  overflow: hidden;
+  background: #0b1f3a;
+  color: #f7f1e6;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.62;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(11, 31, 58, 0.92) 0%, rgba(11, 31, 58, 0.62) 46%, rgba(11, 31, 58, 0.18) 100%);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-copy {
+  position: relative;
+  z-index: 1;
+  width: min(640px, calc(100% - 48px));
+  margin-left: max(24px, calc((100% - 1240px) / 2));
+  padding: 78px 0 92px;
+  animation: lx-rise 640ms ease both;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-kicker {
+  margin: 0 0 14px;
+  color: #c6a15b;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-title {
+  margin: 0;
+  max-width: 12ch;
+  color: #f7f1e6;
+  font-size: clamp(48px, 6vw, 78px);
+  font-weight: 460;
+  letter-spacing: -0.04em;
+  line-height: 0.94;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-title span {
+  color: #e4c98a;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-lead {
+  max-width: 36rem;
+  margin: 18px 0 0;
+  color: rgba(247, 241, 230, 0.86);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-points li,
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-feature {
+  border: 1px solid rgba(198, 161, 91, 0.55);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #f7f1e6;
+  font-size: 0.84rem;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-feature { display: inline-block; margin-top: 16px; }
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-search {
+  width: min(1240px, calc(100% - 32px));
+  margin: -42px auto 12px;
+  position: relative;
+  z-index: 2;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-search-wrap {
+  margin-top: 0;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .lx-search .container-page {
+  max-width: none;
+  padding-inline: 0;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-search-panel {
+  border: 1px solid rgba(198, 161, 91, 0.35);
+  border-radius: 28px;
+  background: #fffdf8;
+  padding: 20px 22px 16px;
+  box-shadow: 0 24px 50px rgba(11, 31, 58, 0.16);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-service-pills button.is-active {
+  background: #0b1f3a;
+  border-color: #0b1f3a;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-search-btn {
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #d4b56a, #a7843d);
+  color: #0b1f3a;
+  box-shadow: 0 12px 24px rgba(167, 132, 61, 0.28);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .flight-form-grid .city-swap-btn {
+  background: linear-gradient(160deg, #0b1f3a, #16345f);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .popular-routes,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-trending,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-journal,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-stories,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-promos {
+  width: min(1240px, calc(100% - 32px));
+  margin-inline: auto;
+  padding-top: 28px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-post,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-story {
+  border-radius: 24px;
+  border: 1px solid rgba(198, 161, 91, 0.35);
+  background: #fffdf8;
+  box-shadow: 0 16px 34px rgba(11, 31, 58, 0.06);
+  transition: transform 240ms ease, box-shadow 240ms ease;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card-media { height: 176px; }
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card:hover,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package:hover,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-post:hover,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-story:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(11, 31, 58, 0.12);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package:hover img,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-post:hover img,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card:hover .route-card-image {
+  transform: scale(1.05);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package-badge,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package-primary {
+  background: #0b1f3a;
+  color: #f7f1e6;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-story-initials,
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-story img {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page .filter-panel-desktop {
+  border-color: rgba(198, 161, 91, 0.45);
+  background: linear-gradient(180deg, #f8f1e4 0%, #fffdf8 7rem);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page .fr-card,
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page .result-card {
+  border-radius: 22px;
+  background: #fffdf8;
+  box-shadow: 0 12px 28px rgba(11, 31, 58, 0.06);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page .fr-price {
+  color: #0b1f3a;
+  font-weight: 750;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .checkout-page .booking-section,
+[data-b2c-theme="LUXURY_ESCAPE"] .checkout-page .booking-not-found,
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-review {
+  border-radius: 22px;
+  box-shadow: 0 16px 34px rgba(11, 31, 58, 0.08);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .checkout-page .booking-layout > :last-child {
+  position: sticky;
+  top: 88px;
+}
+
+@keyframes lx-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 800px) {
+  [data-b2c-theme="LUXURY_ESCAPE"] .lx-shade {
+    background: linear-gradient(180deg, rgba(11, 31, 58, 0.28), rgba(11, 31, 58, 0.88));
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .lx-title { max-width: none; }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .lx-search { margin-top: 16px; }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .checkout-page .booking-layout > :last-child { position: static; }
+}
+
+@keyframes lxCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(42px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lxAvatarIn {
+  from { opacity: 0; transform: scale(0.84); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes lxStarIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-wait,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-in,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up.reveal-wait,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up.reveal-in {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="arm"],
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="arm"] {
+    opacity: 0;
+    transform: translateY(42px);
+    animation: none;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"],
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] {
+    opacity: 1;
+    transform: none;
+    animation: lxCardIn 740ms cubic-bezier(0.22, 0.8, 0.28, 1) backwards;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"]:nth-child(2),
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"]:nth-child(2) { animation-delay: 120ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"]:nth-child(3),
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"]:nth-child(3) { animation-delay: 240ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"]:nth-child(4),
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"]:nth-child(4) { animation-delay: 360ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"]:nth-child(5),
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"]:nth-child(5) { animation-delay: 480ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .reveal-up[data-lx="play"]:nth-child(6),
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"]:nth-child(6) { animation-delay: 600ms; }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card-image,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package-media img,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .blog-cover,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package-primary,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-post-more,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card-arrow {
+    transition: transform 260ms ease, box-shadow 260ms ease;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package:hover .home-package-primary {
+    transform: translateY(-2px);
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-initials,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] footer img {
+    animation: lxAvatarIn 620ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-stars span {
+    animation: lxStarIn 460ms ease both;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-stars span:nth-child(2) { animation-delay: 90ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-stars span:nth-child(3) { animation-delay: 180ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-stars span:nth-child(4) { animation-delay: 270ms; }
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] .home-story-stars span:nth-child(5) { animation-delay: 360ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-b2c-theme="LUXURY_ESCAPE"] .lx-copy,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .route-card,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-package,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-post,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-story,
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="arm"],
+  [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home [data-lx="play"] {
+    animation: none;
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}

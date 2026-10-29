@@ -1,0 +1,106 @@
+.theme-preview-ribbon {
+  margin: 0;
+  background: #0b1f3a;
+  color: #f7f1e6;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 12px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] {
+  --lx: #0b1f3a;
+  --lx-gold: #c6a15b;
+  --lx-ivory: #f7f1e6;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema {
+  position: relative;
+  min-height: 560px;
+  margin: 0 0 28px;
+  background: var(--lx);
+  color: var(--lx-ivory);
+  overflow: hidden;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-panel {
+  position: relative;
+  z-index: 1;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 72px 20px 36px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-kicker {
+  margin: 0 0 12px;
+  color: var(--lx-gold);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-title {
+  margin: 0 0 22px;
+  font-size: clamp(42px, 6vw, 78px);
+  font-weight: 460;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page {
+  background: var(--lx-ivory);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-page .results-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 22px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .theme-flight-card,
+[data-b2c-theme="LUXURY_ESCAPE"] .flight-card,
+[data-b2c-theme="LUXURY_ESCAPE"] .result-card {
+  background: white;
+  border: 1px solid rgba(198, 161, 91, 0.45);
+  border-radius: 18px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-review {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--lx);
+  color: var(--lx-ivory);
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .lx-review p {
+  margin: 6px 0 0;
+  color: var(--lx-gold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+[data-b2c-theme="LUXURY_ESCAPE"] .results-toolbar {
+  margin-bottom: 14px;
+}
+
+@media (max-width: 800px) {
+  [data-b2c-theme="LUXURY_ESCAPE"] .results-page .results-layout {
+    grid-template-columns: 1fr;
+  }
+
+  [data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema {
+    min-height: 0;
+  }
+}

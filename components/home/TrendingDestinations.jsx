@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/api/client";
+import Reveal from "@/components/motion/Reveal";
 
 function money(amount, currency = "INR") {
   const value = Number(amount);
@@ -22,7 +23,7 @@ export default function TrendingDestinations({ enabled }) {
     let ignore = false;
     apiGet("/holidays")
       .then((data) => {
-        if (!ignore) setPackages(Array.isArray(data.packages) ? data.packages.slice(0, 6) : []);
+        if (!ignore) setPackages(Array.isArray(data.packages) ? data.packages.slice(0, 8) : []);
       })
       .catch(() => {
         if (!ignore) setPackages([]);
@@ -37,14 +38,14 @@ export default function TrendingDestinations({ enabled }) {
   return (
     <section className="home-trending" aria-labelledby="trending-destinations">
       <div className="container-page">
-        <div className="home-trending-head home-rise">
+        <Reveal className="home-trending-head">
           <div>
             <p className="home-trending-kicker">Holiday packages</p>
             <h2 id="trending-destinations">Trending Holiday Destinations</h2>
             <p>Published packages from this travel desk</p>
           </div>
           <Link className="home-view-all" href="/holidays">View All Holidays</Link>
-        </div>
+        </Reveal>
         {packages === null ? <p className="home-trending-status">Loading destinations…</p> : null}
         {packages && !packages.length ? (
           <p className="home-trending-empty">This travel desk has not published holiday packages yet.</p>
@@ -53,9 +54,11 @@ export default function TrendingDestinations({ enabled }) {
           <ul className="home-package-grid">
             {packages.map((pkg, index) => {
               const destination = destinationOf(pkg);
+              const stops = (pkg.destinations || []).filter((name) => name && name !== pkg.destinationCity);
               const price = money(pkg.startingPrice, pkg.currency);
+              const highlights = Array.isArray(pkg.highlights) ? pkg.highlights.filter(Boolean).slice(0, 3) : [];
               return (
-                <li key={pkg.slug || pkg.title} className="home-rise" style={{ animationDelay: `${index * 70}ms` }}>
+                <Reveal as="li" key={pkg.slug || pkg.title} delay={index * 100}>
                   <article className="home-package">
                     <Link className="home-package-media" href={`/holidays/${pkg.slug}`}>
                       {pkg.coverImage ? (
@@ -63,13 +66,30 @@ export default function TrendingDestinations({ enabled }) {
                         <img src={pkg.coverImage} alt="" loading="lazy" />
                       ) : <span className="home-destination-fallback" />}
                       <span className="home-package-shade" />
+                      {pkg.durationDays ? (
+                        <span className="home-package-badge">
+                          {pkg.durationDays} days{pkg.durationNights ? ` · ${pkg.durationNights} nights` : ""}
+                        </span>
+                      ) : null}
                     </Link>
                     <div className="home-package-body">
                       <p className="home-package-kicker">{pkg.isInternational ? "International" : "Domestic"}</p>
                       <h3>{pkg.title}</h3>
                       {destination ? <p className="home-package-place">{destination}</p> : null}
-                      {pkg.durationDays ? <p>{pkg.durationDays} days{pkg.durationNights ? ` / ${pkg.durationNights} nights` : ""}</p> : null}
-                      {price ? <p className="home-package-price">{pkg.priceLabel || "Starting price"}: {price}</p> : null}
+                      {stops.length ? <p>{stops.join(" · ")}</p> : null}
+                      {highlights.length ? (
+                        <ul className="home-package-highlights">
+                          {highlights.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      ) : null}
+                    </div>
+                    <div className="home-package-foot">
+                      {price ? (
+                        <p>
+                          <small>{pkg.priceLabel || "Starting price"}</small>
+                          <strong>{price}</strong>
+                        </p>
+                      ) : <span />}
                       <div className="home-package-actions">
                         <Link className="home-package-primary" href={`/holidays/${pkg.slug}`}>View details</Link>
                         {pkg.enquiryEnabled !== false ? (
@@ -78,7 +98,7 @@ export default function TrendingDestinations({ enabled }) {
                       </div>
                     </div>
                   </article>
-                </li>
+                </Reveal>
               );
             })}
           </ul>

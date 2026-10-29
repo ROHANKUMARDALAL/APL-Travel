@@ -8,7 +8,16 @@ export function revealVariant(index) {
   return VARIANTS[index % VARIANTS.length];
 }
 
-export default function Reveal({ variant = "up", step = 0, className = "", children }) {
+export default function Reveal({
+  as: Tag = "div",
+  variant = "up",
+  step = 0,
+  delay = 0,
+  className = "",
+  style,
+  children,
+  ...rest
+}) {
   const ref = useRef(null);
   const [shown, setShown] = useState(false);
 
@@ -30,13 +39,15 @@ export default function Reveal({ variant = "up", step = 0, className = "", child
   }, []);
 
   return (
-    <div
+    <Tag
       ref={ref}
       className={`reveal reveal-${variant} reveal-step-${step % 4} ${
         shown ? "reveal-in" : "reveal-wait"
       } ${className}`.trim()}
+      style={{ ...style, animationDelay: delay ? `${delay}ms` : style?.animationDelay }}
+      {...rest}
     >
       {children}
-    </div>
+    </Tag>
   );
 }

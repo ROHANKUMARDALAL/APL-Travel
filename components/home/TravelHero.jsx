@@ -1,3 +1,5 @@
+import HeroBackground from "@/components/home/HeroBackground";
+
 const TRUST = [
   {
     title: "Best travel deals",
@@ -19,16 +21,10 @@ const TRUST = [
   },
 ];
 
-export default function TravelHero() {
+export default function TravelHero({ slides }) {
   return (
     <section className="home-hero" aria-label="Discover your next journey">
-      <img
-        className="home-hero-image"
-        src="/images/hero-tropical.jpg"
-        alt=""
-        fetchPriority="high"
-        decoding="async"
-      />
+      <HeroBackground slides={slides} />
       <div className="home-hero-shade" aria-hidden="true" />
       <div className="container-page home-hero-copy">
         <p className="home-hero-kicker">Explore the world</p>

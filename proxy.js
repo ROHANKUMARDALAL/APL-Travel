@@ -9,8 +9,16 @@ import { NextResponse } from "next/server";
  * Authority is the inbound Host to this B2C app (not body/query dsaId).
  * Backend still ignores client dsaId and uses Phase 8 host resolution.
  */
+const PREVIEW_THEMES = new Set(["CLASSIC_TRAVEL", "MODERN_EXPLORER", "LUXURY_ESCAPE"]);
+
 export function proxy(request) {
   const requestHeaders = new Headers(request.headers);
+  const preview = String(request.nextUrl.searchParams.get("previewTheme") || "").toUpperCase();
+  if (PREVIEW_THEMES.has(preview)) requestHeaders.set("x-apl-preview-theme", preview);
+  const previewColors = String(request.nextUrl.searchParams.get("previewColors") || "");
+  if (/^#[0-9A-Fa-f]{6}(?:,#[0-9A-Fa-f]{6}){4}$/.test(previewColors)) {
+    requestHeaders.set("x-apl-preview-colors", previewColors);
+  }
 
   const forwarded = String(request.headers.get("x-forwarded-host") || "")
     .split(",")[0]
@@ -34,5 +42,5 @@ export function proxy(request) {
 }
 
 export const config = {
-  matcher: ["/api/v1/:path*", "/media/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

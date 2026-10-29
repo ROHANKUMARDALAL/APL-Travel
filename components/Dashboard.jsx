@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import ServiceSearch from "@/components/ServiceSearch";
@@ -16,6 +16,12 @@ import {
   parseHotelSearchParams,
 } from "@/lib/searchQuery";
 import { useSite } from "@/components/site/SiteProvider";
+import { useActiveTheme } from "@/components/themes/useActiveTheme";
+import { ModernHomeHero } from "@/components/themes/ModernHomeHero";
+import { ModernScrollMotion } from "@/components/themes/ModernScrollMotion";
+import { LuxuryHomeHero } from "@/components/themes/LuxuryHomeHero";
+import { LuxuryScrollMotion } from "@/components/themes/LuxuryScrollMotion";
+import { homeHeroSlides } from "@/lib/heroSlides.mjs";
 
 function offeredService(value, offeredIds) {
   const id = String(value || "").toLowerCase();
@@ -27,7 +33,9 @@ function offeredService(value, offeredIds) {
 export default function Dashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { services } = useSite();
+  const { services, banners, branding } = useSite();
+  const theme = useActiveTheme();
+  const heroSlides = useMemo(() => homeHeroSlides(banners), [banners]);
   const offeredIds = services.map((s) => s.id);
   const serviceFromUrl = offeredService(searchParams.get("service"), offeredIds);
   const [activeService, setActiveService] = useState(serviceFromUrl);
@@ -88,30 +96,69 @@ export default function Dashboard() {
     return null;
   })();
 
+  const search = services.length ? (
+    <ServiceSearch
+      activeService={activeService}
+      onServiceChange={onServiceChange}
+      initialValues={searchInitialValues}
+    />
+  ) : (
+    <section className="container-page relative z-10 pb-10">
+      <div className="rounded-xl border border-[var(--line)] bg-white p-6 text-sm text-[var(--ink-muted)] shadow-sm">
+        No travel services are currently offered on this website.
+      </div>
+    </section>
+  );
+  const cover = heroSlides.find((slide) => slide?.src)?.src || "";
+  const holiday = services.some((service) => service.id === "holiday");
+  const flight = services.some((service) => service.id === "flight");
+
+  if (theme === "MODERN_EXPLORER") {
+    return (
+      <div className="site-shell theme-modern-home">
+        <ModernScrollMotion />
+        <Header activeService={activeService} onServiceChange={onServiceChange} />
+        <div className="mx-stage">
+          <ModernHomeHero branding={branding} slides={heroSlides} />
+          <div className="mx-search">{search}</div>
+        </div>
+        <PopularFlightRoutes enabled={flight} service="flight" />
+        <TrendingDestinations enabled={holiday} />
+        <HomeFromCms activeService={activeService} />
+        <Testimonials />
+        <Footer />
+      </div>
+    );
+  }
+
+  if (theme === "LUXURY_ESCAPE") {
+    return (
+      <div className="site-shell theme-luxury-home">
+        <LuxuryScrollMotion />
+        <Header activeService={activeService} onServiceChange={onServiceChange} />
+        <LuxuryHomeHero branding={branding} slides={heroSlides} />
+        <div className="lx-search">{search}</div>
+        <TrendingDestinations enabled={holiday} />
+        <PopularFlightRoutes enabled={flight} service="flight" />
+        <Testimonials />
+        <HomeFromCms activeService={activeService} />
+        <Footer />
+      </div>
+    );
+  }
+
   return (
-    <div className="site-shell">
+    <div className="site-shell theme-classic-home">
       <Header
         activeService={activeService}
         onServiceChange={onServiceChange}
       />
 
-      <TravelHero />
+      <TravelHero slides={heroSlides} />
 
-      {services.length ? (
-        <ServiceSearch
-          activeService={activeService}
-          onServiceChange={onServiceChange}
-          initialValues={searchInitialValues}
-        />
-      ) : (
-        <section className="container-page relative z-10 -mt-10 pb-10">
-          <div className="rounded-xl border border-[var(--line)] bg-white p-6 text-sm text-[var(--ink-muted)] shadow-sm">
-            No travel services are currently offered on this website.
-          </div>
-        </section>
-      )}
-      <TrendingDestinations enabled={services.some((service) => service.id === "holiday")} />
-      <PopularFlightRoutes enabled={services.some((service) => service.id === "flight")} service="flight" />
+      {search}
+      <TrendingDestinations enabled={holiday} />
+      <PopularFlightRoutes enabled={flight} service="flight" />
       <HomeFromCms activeService={activeService} />
       <Testimonials />
       <Footer />
