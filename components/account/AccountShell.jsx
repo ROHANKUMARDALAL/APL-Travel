@@ -10,7 +10,7 @@ import Header from "@/components/Header";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile", href: "/account" },
-  { id: "trips", label: "My Trips", href: "/my-trips" },
+  { id: "trips", label: "My Bookings", href: "/my-trips" },
   { id: "wallet", label: "My Wallet", href: "/account/wallet" },
   { id: "transactions", label: "All Transactions", href: "/account/transactions" },
   { id: "referral", label: "Referral Code", href: "/account/referral" },

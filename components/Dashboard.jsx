@@ -44,8 +44,20 @@ export default function Dashboard() {
     setActiveService(offeredService(searchParams.get("service"), offeredIds));
   }, [serviceFromUrl, offeredIds.join("|")]);
 
+  useEffect(() => {
+    if (searchParams.get("service") !== "recharge") return;
+    if (!offeredIds.includes("recharge")) return;
+    const href = services.find((service) => service.id === "recharge")?.href || "/recharge";
+    router.replace(href);
+  }, [searchParams, services, offeredIds.join("|"), router]);
+
   const onServiceChange = useCallback(
     (serviceId) => {
+      if (serviceId === "recharge") {
+        const href = services.find((service) => service.id === "recharge")?.href || "/recharge";
+        router.push(href);
+        return;
+      }
       const next = offeredService(serviceId, offeredIds);
       if (offeredIds.length && !offeredIds.includes(next)) return;
       setActiveService(next);
@@ -53,7 +65,7 @@ export default function Dashboard() {
       params.set("service", next);
       router.replace(`/?${params.toString()}`, { scroll: false });
     },
-    [router, searchParams, offeredIds.join("|")],
+    [router, searchParams, services, offeredIds.join("|")],
   );
 
   const searchInitialValues = (() => {

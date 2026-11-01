@@ -169,7 +169,9 @@ export default function TripDetailsClient({ reference }) {
 
       <div className="trip-detail-grid">
         <section className="trip-journey">
-          {booking.service === "hotel" ? (
+          {booking.service === "recharge" && booking.recharge ? (
+            <RechargeReceipt booking={booking} money={money} />
+          ) : booking.service === "hotel" ? (
             <HotelStay trip={trip} marketId={marketId} />
           ) : booking.service === "bus" ? (
             <BusRide
@@ -200,6 +202,7 @@ export default function TripDetailsClient({ reference }) {
           ) : null}
         </section>
 
+        {booking.service === "recharge" ? null : (
         <section className="trip-receipt">
           <h2 className="trip-card-title">Payment</h2>
           <div className="trip-meta-row">
@@ -243,6 +246,7 @@ export default function TripDetailsClient({ reference }) {
             </div>
           </dl>
         </section>
+        )}
       </div>
 
       <div className="confirmation-actions">
@@ -258,7 +262,7 @@ export default function TripDetailsClient({ reference }) {
         >
           Download ticket
         </button>
-        {booking.bookingStatus === "confirmed" || booking.bookingStatus === "CONFIRMED" ? (
+        {booking.service !== "recharge" && (booking.bookingStatus === "confirmed" || booking.bookingStatus === "CONFIRMED") ? (
           <button
             type="button"
             className="btn-ghost"
@@ -304,6 +308,34 @@ export default function TripDetailsClient({ reference }) {
   );
 }
 
+function RechargeReceipt({ booking, money }) {
+  const row = booking.recharge || {};
+  return (
+    <div className="rch-receipt">
+      <p className="rch-kicker">DEMO / MOCK RECHARGE</p>
+      <h2 className="trip-card-title">{row.operator || "Recharge"}</h2>
+      <p className="section-copy">No telecom operator was contacted. This receipt records the demonstration order.</p>
+      <dl className="checkout-fact-list">
+        <div><dt>Recharge reference</dt><dd>{row.rechargeReference || "—"}</dd></div>
+        <div><dt>Booking reference</dt><dd>{booking.reference}</dd></div>
+        <div><dt>Mobile</dt><dd>{row.accountMasked || "—"}</dd></div>
+        <div><dt>Type</dt><dd>{row.lineType || row.category || "—"}</dd></div>
+        <div><dt>Region</dt><dd>{row.circleName || row.country || "—"}</dd></div>
+        <div><dt>Plan</dt><dd>{[row.planId, row.validity].filter(Boolean).join(" · ") || "—"}</dd></div>
+        <div><dt>Benefits</dt><dd>{row.benefits || "—"}</dd></div>
+        <div><dt>Amount</dt><dd>{booking.payable?.totalPayableLabel || money(row.amount)}</dd></div>
+        <div><dt>Payment</dt><dd>{row.paymentMethod || booking.paymentMethod || "—"}</dd></div>
+        <div><dt>Payment reference</dt><dd>{row.paymentReference || booking.paymentReference || "—"}</dd></div>
+        <div><dt>Status</dt><dd>{bookingStatusLabel(booking)} · DEMO / MOCK</dd></div>
+      </dl>
+      <div className="account-inline-actions">
+        <button type="button" className="btn-secondary" onClick={() => window.print()}>Print receipt</button>
+        <Link className="btn-ghost" href="/account/transactions">View transactions</Link>
+      </div>
+    </div>
+  );
+}
+
 function prettyDay(value, marketId) {
   const raw = String(value || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return value || "—";
@@ -311,6 +343,7 @@ function prettyDay(value, marketId) {
 }
 
 function serviceLabel(service) {
+  if (service === "recharge") return "Recharge";
   if (service === "hotel") return "Hotel";
   if (service === "bus") return "Bus";
   if (service === "transfer") return "Transfer";

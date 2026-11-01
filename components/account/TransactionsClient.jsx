@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AccountShell from "@/components/account/AccountShell";
 import DatePicker from "@/components/ui/DatePicker";
 import PremiumSelect from "@/components/ui/PremiumSelect";
@@ -16,6 +17,7 @@ const SERVICES = [
   { value: "BUS", label: "Bus" },
   { value: "TRANSFER", label: "Cab" },
   { value: "INSURANCE", label: "Insurance" },
+  { value: "RECHARGE", label: "Recharge" },
   { value: "WALLET", label: "Wallet" },
 ];
 const STATUSES = [
@@ -156,9 +158,12 @@ export default function TransactionsClient() {
             <strong>{row.reference}</strong>
             <span className={`tx-pill is-${row.status}`}>{row.status}</span>
           </header>
-          <p>{row.service} · {displayTransactionType(row)} · {row.direction === "CREDIT" ? "Credit" : row.direction === "DEBIT" ? "Debit" : "No movement"} · {money(row.amount)}</p>
-          <p className="result-card-meta">{row.method}{Number(row.feeAmount) > 0 ? ` · Fee ${money(row.feeAmount)}` : ""} · {row.createdAt ? new Date(row.createdAt).toLocaleString() : ""}</p>
-          <button type="button" className="btn-secondary" onClick={() => setOpenId(row.id)}>View details</button>
+          <p>{displayTransactionType(row)} · {row.direction === "CREDIT" ? "Credit" : row.direction === "DEBIT" ? "Debit" : "No movement"} · {money(row.amount)}</p>
+          <p className="result-card-meta">{row.method} · {row.reference}{row.rechargeReference ? ` · ${row.rechargeReference}` : ""} · {row.createdAt ? new Date(row.createdAt).toLocaleString() : ""}</p>
+          <div className="account-inline-actions">
+            <button type="button" className="btn-secondary" onClick={() => setOpenId(row.id)}>View details</button>
+            {row.service === "RECHARGE" && row.bookingReference ? <Link className="btn-ghost" href={`/my-trips/${row.bookingReference}`}>View Recharge Details</Link> : null}
+          </div>
         </article>
       ))}
       {openId ? (

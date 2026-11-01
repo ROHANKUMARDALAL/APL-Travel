@@ -32,7 +32,6 @@ const SEARCH_BUTTON = {
 
 const ENQUIRY_COPY = {
   visa: "Tell us where you are travelling. This is a request for assistance, not a visa approval.",
-  recharge: "Send a recharge request to this travel desk. This does not complete a payment.",
   insurance: "Compare mock travel plans. These are not real policies and nothing is purchased here.",
 };
 
@@ -45,7 +44,7 @@ const QUICK_TONE = {
 };
 const QUICK_HINT = {
   visa: "Enquiry",
-  recharge: "Request",
+  recharge: "Open",
   holiday: "Enquiry",
   insurance: "Compare",
 };
@@ -134,7 +133,13 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
                   role="tab"
                   aria-selected={selected}
                   className={selected ? "is-active" : ""}
-                  onClick={() => onServiceChange(service.id)}
+                  onClick={() => {
+                    if (service.id === "recharge" && service.href) {
+                      router.push(service.href);
+                      return;
+                    }
+                    onServiceChange(service.id);
+                  }}
                 >
                   <ServiceIcon name={service.icon} className="h-4 w-4" />
                   {PILL_LABELS[service.id] || service.label}
@@ -204,7 +209,17 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
           {quick.length ? (
             <div className="home-quick-grid">
               {quick.map((service) => (
-                <button key={service.id} type="button" onClick={() => onServiceChange(service.id)}>
+                <button
+                  key={service.id}
+                  type="button"
+                  onClick={() => {
+                    if (service.id === "recharge" && service.href) {
+                      router.push(service.href);
+                      return;
+                    }
+                    onServiceChange(service.id);
+                  }}
+                >
                   <span className="home-quick-icon" style={{ background: QUICK_TONE[service.id] }}>
                     <ServiceIcon name={service.icon} className="h-4 w-4" />
                   </span>

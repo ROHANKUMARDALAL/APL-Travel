@@ -68,6 +68,34 @@ function TripCard({ booking }) {
           <dt>Amount</dt>
           <dd>{booking.payable?.totalPayableLabel || "—"}</dd>
         </div>
+        {booking.service === "recharge" && booking.recharge ? (
+          <>
+            <div>
+              <dt>Operator</dt>
+              <dd>{booking.recharge.operator || "—"}</dd>
+            </div>
+            <div>
+              <dt>Mobile</dt>
+              <dd>{booking.recharge.accountMasked || "—"}</dd>
+            </div>
+            <div>
+              <dt>Type</dt>
+              <dd>{booking.recharge.lineType || booking.recharge.category || "Recharge"}</dd>
+            </div>
+            <div>
+              <dt>Plan</dt>
+              <dd>{[booking.recharge.planId, booking.recharge.validity].filter(Boolean).join(" · ") || "—"}</dd>
+            </div>
+            <div>
+              <dt>Payment</dt>
+              <dd>{booking.recharge.paymentMethod || booking.paymentMethod || "—"}</dd>
+            </div>
+            <div>
+              <dt>Recharge reference</dt>
+              <dd>{booking.recharge.rechargeReference || "—"}</dd>
+            </div>
+          </>
+        ) : null}
         {booking.service === "bus" && booking.itinerary?.boardingPoint?.name ? (
           <div>
             <dt>Boarding</dt>
@@ -153,7 +181,7 @@ export default function MyTripsClient() {
   }
 
   return (
-    <AccountShell title="My Trips">
+    <AccountShell title="My Bookings">
       <p className="section-copy account-lede">
         Your bookings for this signed-in account. Each trip is loaded with your login and stays with that customer.
       </p>

@@ -34,6 +34,10 @@ export default function Header({
   const brandName = branding.websiteName || tenant?.displayName || tenant?.companyName || "";
 
   function selectService(service) {
+    if (service.id === "recharge" && service.href) {
+      router.push(service.href);
+      return;
+    }
     if (typeof onServiceChange === "function") {
       onServiceChange(service.id);
       return;
