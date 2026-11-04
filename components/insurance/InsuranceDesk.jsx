@@ -3,12 +3,19 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getCountries, getCountryCallingCode } from "libphonenumber-js";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import CountrySelect from "@/components/recharge/CountrySelect";
 import { apiPost } from "@/lib/api/client";
 import { formatMoney, getActiveMarketId } from "@/data/markets";
 import IsoDateField, { dateToIso } from "@/components/ui/IsoDateField";
 import { today } from "@/lib/dateUtils";
+import "@/app/recharge.css";
+
+function flag(iso) {
+  return iso.replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)));
+}
 
 const DISCLAIMER = "Mock comparison only. These plans do not provide real coverage and no policy is issued.";
 
@@ -18,6 +25,15 @@ function emptyTraveller() {
 
 export function InsuranceSearch({ initial }) {
   const router = useRouter();
+  const countries = useMemo(() => {
+    const names = new Intl.DisplayNames(["en"], { type: "region" });
+    return getCountries().map((iso) => ({
+      iso,
+      name: names.of(iso) || iso,
+      dialCode: `+${getCountryCallingCode(iso)}`,
+      flag: flag(iso),
+    }));
+  }, []);
   const [form, setForm] = useState({
     destination: initial?.destination || "",
     departureDate: initial?.departureDate || "",
@@ -26,6 +42,16 @@ export function InsuranceSearch({ initial }) {
     travellers: initial?.travellers?.length ? initial.travellers : [emptyTraveller()],
   });
   const [error, setError] = useState("");
+  const countryIso = countries.find((country) => country.name === form.destination)?.iso || "";
+
+  function setTravellerCount(count) {
+    const next = Math.max(1, Math.min(6, count));
+    setForm((current) => {
+      const travellers = current.travellers.slice(0, next);
+      while (travellers.length < next) travellers.push(emptyTraveller());
+      return { ...current, travellers };
+    });
+  }
 
   function updateTraveller(index, patch) {
     setForm((current) => ({
@@ -57,64 +83,70 @@ export function InsuranceSearch({ initial }) {
   }
 
   return (
-    <form className="home-other-search" onSubmit={submit}>
-      <label>
-        Destination
-        <input className="field-input" value={form.destination} onChange={(event) => setForm({ ...form, destination: event.target.value })} placeholder="Travel country" />
-      </label>
-      <IsoDateField
-        id="insurance-depart"
-        label="Departure"
-        value={form.departureDate}
-        min={dateToIso(today())}
-        rangeStart={form.departureDate}
-        rangeEnd={form.returnDate}
-        onChange={(departureDate) => setForm({
-          ...form,
-          departureDate,
-          returnDate: form.returnDate && departureDate && form.returnDate < departureDate ? "" : form.returnDate,
-        })}
-      />
-      <IsoDateField
-        id="insurance-return"
-        label="Return"
-        value={form.returnDate}
-        min={form.departureDate || dateToIso(today())}
-        rangeStart={form.departureDate}
-        rangeEnd={form.returnDate}
-        onChange={(returnDate) => setForm({ ...form, returnDate })}
-      />
-      <label>
-        Trip type
-        <select className="field-input" value={form.tripType} onChange={(event) => setForm({ ...form, tripType: event.target.value })}>
-          <option value="SINGLE">Single trip</option>
-          <option value="RETURN">Return</option>
-        </select>
-      </label>
-      {form.travellers.map((person, index) => (
-        <div key={`traveller-${index}`} className="insurance-traveller">
-          <label>
-            Traveller {index + 1}
-            <select className="field-input" value={person.type} onChange={(event) => updateTraveller(index, { type: event.target.value })}>
-              <option value="ADULT">Adult</option>
-              <option value="CHILD">Child</option>
-            </select>
-          </label>
-          <label>
-            Age
-            <input className="field-input" inputMode="numeric" value={person.age} onChange={(event) => updateTraveller(index, { age: event.target.value })} />
-          </label>
+    <form className="insurance-search-card" onSubmit={submit}>
+      <div className="insurance-card-head">
+        <h2>Travel Insurance Search</h2>
+        <p>Compare mock plans for this trip. Nothing is purchased here.</p>
+      </div>
+      <div className="insurance-form-grid">
+        <CountrySelect
+          countries={countries}
+          label="Destination Country"
+          value={countryIso}
+          onChange={(iso) => setForm({ ...form, destination: countries.find((country) => country.iso === iso)?.name || "" })}
+        />
+        <div className="insurance-segment" role="group" aria-label="Trip Type">
+          <button type="button" className={form.tripType !== "ANNUAL" ? "is-on" : ""} onClick={() => setForm({ ...form, tripType: "SINGLE" })}>Single Trip</button>
+          <button type="button" className={form.tripType === "ANNUAL" ? "is-on" : ""} onClick={() => setForm({ ...form, tripType: "ANNUAL" })}>Multi Trip</button>
         </div>
-      ))}
-      <button
-        type="button"
-        className="btn-ghost"
-        onClick={() => setForm((current) => ({ ...current, travellers: [...current.travellers, { type: "CHILD", age: "8" }] }))}
-      >
-        Add traveller
-      </button>
+        <IsoDateField
+          id="insurance-depart"
+          label="Departure Date"
+          value={form.departureDate}
+          min={dateToIso(today())}
+          rangeStart={form.departureDate}
+          rangeEnd={form.returnDate}
+          onChange={(departureDate) => setForm({
+            ...form,
+            departureDate,
+            returnDate: form.returnDate && departureDate && form.returnDate < departureDate ? "" : form.returnDate,
+          })}
+        />
+        <IsoDateField
+          id="insurance-return"
+          label="Return Date"
+          value={form.returnDate}
+          min={form.departureDate || dateToIso(today())}
+          rangeStart={form.departureDate}
+          rangeEnd={form.returnDate}
+          onChange={(returnDate) => setForm({ ...form, returnDate })}
+        />
+        <div className="insurance-stepper-field">
+          <span className="rch-label">Number of Travellers</span>
+          <div className="insurance-stepper">
+            <button type="button" aria-label="Remove traveller" onClick={() => setTravellerCount(form.travellers.length - 1)} disabled={form.travellers.length <= 1}>−</button>
+            <strong>{form.travellers.length}</strong>
+            <button type="button" aria-label="Add traveller" onClick={() => setTravellerCount(form.travellers.length + 1)} disabled={form.travellers.length >= 6}>+</button>
+          </div>
+        </div>
+      </div>
+      <div className="insurance-people">
+        {form.travellers.map((person, index) => (
+          <div key={`traveller-${index}`} className="insurance-person">
+            <p>Traveller {index + 1}</p>
+            <div className="insurance-segment" role="group" aria-label={`Traveller ${index + 1} type`}>
+              <button type="button" className={person.type === "ADULT" ? "is-on" : ""} onClick={() => updateTraveller(index, { type: "ADULT" })}>Adult</button>
+              <button type="button" className={person.type === "CHILD" ? "is-on" : ""} onClick={() => updateTraveller(index, { type: "CHILD" })}>Child</button>
+            </div>
+            <label>
+              Age
+              <input className="field-input" inputMode="numeric" value={person.age} onChange={(event) => updateTraveller(index, { age: event.target.value.replace(/[^\d]/g, "") })} />
+            </label>
+          </div>
+        ))}
+      </div>
       {error ? <p className="field-error">{error}</p> : null}
-      <button type="submit" className="home-search-btn">Compare plans</button>
+      <button type="submit" className="home-search-btn insurance-submit">Compare Insurance Plans</button>
     </form>
   );
 }
@@ -139,20 +171,21 @@ export function InsuranceResults({ plans, searchId, trip }) {
   }
 
   return (
-    <div className="results-list">
+    <div className="insurance-plan-list">
+      <p className="insurance-disclaimer">DEMO / MOCK INSURANCE. These cards are illustrations, not policies or coverage guarantees.</p>
       {plans.map((plan) => (
-        <article key={plan.id} className="result-card">
+        <article key={plan.id} className="insurance-plan-card">
           <div>
             <p className="result-card-kicker">{plan.provider}</p>
             <h2>{plan.name}</h2>
-            <p className="result-card-meta">Coverage {plan.coverageAmount.amount.toLocaleString()} {plan.coverageAmount.currency}</p>
+            <p className="insurance-coverage">Coverage {plan.coverageAmount.amount.toLocaleString()} {plan.coverageAmount.currency}</p>
             <p>{plan.medicalCoverage}</p>
-            <p className="result-card-meta">Baggage: {plan.baggageProtection}</p>
-            <p className="result-card-meta">Trip: {plan.tripProtection}</p>
+            {plan.benefits?.length ? <ul>{plan.benefits.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+            {plan.exclusions?.length ? <p className="result-card-meta">Exclusions: {plan.exclusions.join("; ")}</p> : null}
           </div>
           <div className="result-card-price">
             <p className="price-total">{formatMoney(plan.premium.amount, marketId, plan.premium.currency)}</p>
-            <p className="price-fee-note">Illustrated premium. Demo purchase only.</p>
+            <p className="price-fee-note">Illustrated premium. Demo only.</p>
             <label className="booking-meta">
               <input type="checkbox" checked={compared.includes(plan.id)} onChange={() => toggle(plan.id)} /> Compare
             </label>
@@ -163,7 +196,7 @@ export function InsuranceResults({ plans, searchId, trip }) {
               returnDate: trip?.returnDate || "",
               travellers: (trip?.travellers || []).map((person) => `${person.type}:${person.age}`).join(","),
             }).toString()}`}>
-              View plan
+              Select plan
             </Link>
           </div>
         </article>
@@ -212,12 +245,19 @@ export async function loadInsurancePlans(params) {
 
 export function InsurancePageFrame({ title, children }) {
   return (
-    <div className="site-shell min-h-screen bg-[var(--bg)]">
+    <div className="site-shell bg-[var(--bg)]">
       <Header />
-      <main className="container-page booking-page-inner">
-        <p className="result-card-kicker">Mock insurance</p>
-        <h1 className="booking-title">{title}</h1>
-        <p className="booking-section-copy">{DISCLAIMER}</p>
+      <main className="container-page insurance-page">
+        <header className="insurance-intro">
+          <span className="insurance-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v6c0 4.2 2.8 7.4 7 9 4.2-1.6 7-4.8 7-9V6l-7-3Z" stroke="currentColor" strokeWidth="1.7" /><path d="m9 12 2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+          </span>
+          <div>
+            <p className="insurance-kicker">Travel protection</p>
+            <h1>{title}</h1>
+            <p>{DISCLAIMER}</p>
+          </div>
+        </header>
         {children}
       </main>
       <Footer />

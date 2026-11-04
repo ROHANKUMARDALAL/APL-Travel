@@ -70,17 +70,22 @@ export default function HeroBackground({ slides = [] }) {
 
   return (
     <div ref={rootRef} className="home-hero-slides" aria-roledescription="carousel" aria-label="Travel destinations">
-      {list.map((slide, slideIndex) => (
-        <img
-          key={slide.src}
-          className={`home-hero-image ${slide.src.endsWith("hero-tropical.jpg") ? "is-beach" : ""} ${slideIndex === index % count ? "is-active" : ""}`}
-          src={slide.src}
-          alt={slide.label}
-          fetchPriority={slideIndex === 0 ? "high" : "low"}
-          loading={slideIndex === 0 ? "eager" : "lazy"}
-          decoding="async"
-        />
-      ))}
+      {list.map((slide, slideIndex) => {
+        const active = slideIndex === index % count;
+        return (
+          <div key={slide.src} className={`home-hero-frame${active ? " is-active" : ""}`}>
+            <img className="home-hero-fill" src={slide.src} alt="" aria-hidden="true" />
+            <img
+              className={`home-hero-image ${slide.src.endsWith("hero-tropical.jpg") ? "is-beach" : ""}${active ? " is-active" : ""}`}
+              src={slide.src}
+              alt={slide.label}
+              fetchPriority={slideIndex === 0 ? "high" : "low"}
+              loading={slideIndex === 0 ? "eager" : "lazy"}
+              decoding="async"
+            />
+          </div>
+        );
+      })}
       {count > 1 ? (
       <div className="home-hero-controls">
         <button type="button" className="home-hero-arrow is-prev" aria-label="Previous destination" onClick={() => setIndex((current) => wrapSlide(current, -1, count))}>

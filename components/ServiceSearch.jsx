@@ -9,6 +9,7 @@ import HotelSearchForm from "@/components/forms/HotelSearchForm";
 import BusSearchForm from "@/components/forms/BusSearchForm";
 import TransferSearchForm from "@/components/forms/TransferSearchForm";
 import HolidayHomeSearch from "@/components/home/HolidayHomeSearch";
+import VisaEnquiryForm from "@/components/services/VisaEnquiryForm";
 import RecentSearches from "@/components/search/RecentSearches";
 import { buildResultsHref } from "@/lib/searchQuery";
 import { RECENT_CHANGE_EVENT, saveRecentSearch } from "@/lib/recentSearches";
@@ -33,20 +34,6 @@ const SEARCH_BUTTON = {
 const ENQUIRY_COPY = {
   visa: "Tell us where you are travelling. This is a request for assistance, not a visa approval.",
   insurance: "Compare mock travel plans. These are not real policies and nothing is purchased here.",
-};
-
-const QUICK = ["visa", "recharge", "holiday", "insurance"];
-const QUICK_TONE = {
-  visa: "#ec4899",
-  recharge: "#16a34a",
-  holiday: "#f59e0b",
-  insurance: "#7c3aed",
-};
-const QUICK_HINT = {
-  visa: "Enquiry",
-  recharge: "Open",
-  holiday: "Enquiry",
-  insurance: "Compare",
 };
 
 function SearchIcon() {
@@ -85,7 +72,7 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
 
   function handleSubmit(event) {
     event.preventDefault();
-    if (activeService === "transfer" && submitLock.current) return;
+    if ((activeService === "transfer" || activeService === "bus") && submitLock.current) return;
     const query = searchQueryRef.current;
     if (activeService === "transfer" && query) {
       if (!isPickupAllowed(query.date, query.time, new Date(), query.timeZone || CAB_TIME_ZONE)) {
@@ -98,7 +85,7 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
       return;
     }
     setFormError("");
-    if ((activeService === "flight" || activeService === "transfer") && query && typeof window !== "undefined") {
+    if ((activeService === "flight" || activeService === "transfer" || activeService === "bus") && query && typeof window !== "undefined") {
       const saved = saveRecentSearch(window.localStorage, activeService, {
         tenantCode: tenant?.code || "",
         customerId: getCurrentUser()?.id || "",
@@ -106,18 +93,23 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
       }, query, new Date());
       if (saved) window.dispatchEvent(new Event(RECENT_CHANGE_EVENT));
     }
-    if (activeService === "transfer") {
+    if (activeService === "transfer" || activeService === "bus") {
       submitLock.current = true;
       setSearching(true);
     }
-    router.push(buildResultsHref(activeService, query));
+    const hrefQuery = query ? { ...query } : query;
+    if (hrefQuery) {
+      delete hrefQuery.fromId;
+      delete hrefQuery.toId;
+    }
+    router.push(buildResultsHref(activeService, hrefQuery));
   }
 
   const restored = restore?.service === activeService ? restore : null;
   const formValues = restored?.values || initialValues;
   const formKey = `${activeService}-${restored ? restored.token : initialValues ? "prefill" : "default"}`;
   const cabSearch = activeService === "transfer";
-  const quick = services.filter((service) => QUICK.includes(service.id));
+  const inlineSearch = cabSearch || activeService === "bus";
 
   return (
     <section id="search" className="home-search-wrap">
@@ -157,7 +149,7 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
                 <HotelSearchForm key={formKey} initialValues={formValues} onSearchChange={handleSearchChange} />
               ) : null}
               {activeService === "bus" ? (
-                <BusSearchForm key={formKey} initialValues={formValues} onSearchChange={handleSearchChange} />
+                <BusSearchForm key={formKey} initialValues={formValues} onSearchChange={handleSearchChange} searching={searching} showErrors={Boolean(formError)} />
               ) : null}
               {activeService === "transfer" ? (
                 <TransferSearchForm
@@ -177,7 +169,7 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
                   )}
                 />
               ) : null}
-              {cabSearch ? null : (
+              {inlineSearch ? null : (
                 <div className="home-search-submit">
                   {formError ? <p className="field-error">{formError}</p> : null}
                   <button
@@ -190,7 +182,7 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
                   </button>
                 </div>
               )}
-              {activeService === "flight" || activeService === "transfer" ? (
+              {activeService === "flight" || activeService === "transfer" || activeService === "bus" ? (
                 <RecentSearches service={activeService} onRestore={restoreSearch} />
               ) : null}
             </form>
@@ -198,38 +190,13 @@ export default function ServiceSearch({ activeService, onServiceChange, initialV
 
           {active?.id === "holiday" ? <HolidayHomeSearch /> : null}
 
-          {active && ENQUIRY_COPY[active.id] ? (
+          {active?.id === "visa" ? <VisaEnquiryForm /> : null}
+
+          {active && active.id !== "visa" && ENQUIRY_COPY[active.id] ? (
             <div className="home-enquiry-panel">
               <h2>{active.label}</h2>
               <p>{ENQUIRY_COPY[active.id]}</p>
               <Link className="home-search-btn" href={active.href || `/${active.id}`}>{`Continue ${active.label}`}</Link>
-            </div>
-          ) : null}
-
-          {quick.length ? (
-            <div className="home-quick-grid">
-              {quick.map((service) => (
-                <button
-                  key={service.id}
-                  type="button"
-                  onClick={() => {
-                    if (service.id === "recharge" && service.href) {
-                      router.push(service.href);
-                      return;
-                    }
-                    onServiceChange(service.id);
-                  }}
-                >
-                  <span className="home-quick-icon" style={{ background: QUICK_TONE[service.id] }}>
-                    <ServiceIcon name={service.icon} className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <strong>{service.label}</strong>
-                    <small>{QUICK_HINT[service.id]}</small>
-                  </span>
-                  <span className="home-quick-chevron" aria-hidden="true">›</span>
-                </button>
-              ))}
             </div>
           ) : null}
         </div>

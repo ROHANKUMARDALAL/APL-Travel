@@ -57,6 +57,16 @@ function TripCard({ booking }) {
           <dd className="trip-ref">{booking.reference}</dd>
         </div>
         <div>
+          <dt>{booking.service === "hotel" || booking.service === "transfer" ? "PNR / Confirmation Reference" : "PNR"}</dt>
+          <dd className="trip-ref">{booking.pnr || "Not stored"}</dd>
+        </div>
+        {booking.confirmationNotice ? (
+          <div>
+            <dt>Notice</dt>
+            <dd>{booking.confirmationNotice}</dd>
+          </div>
+        ) : null}
+        <div>
           <dt>Date</dt>
           <dd>{dateLabel}</dd>
         </div>
@@ -140,21 +150,22 @@ export default function MyTripsClient() {
   const [phase, setPhase] = useState("upcoming");
   const [serviceFilter, setServiceFilter] = useState(serviceFromUrl);
   const [bookings, setBookings] = useState([]);
+  const [query, setQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    loadAccountBookings()
-      .then((rows) => {
+    const service = serviceFilter === "all" ? "" : serviceFilter;
+    loadAccountBookings({ q: submittedQuery, service, page, pageSize: 20 })
+      .then((result) => {
         if (!ignore) {
-          setBookings(
-            rows.filter(
-              (row) =>
-                row.tripPhase === phase &&
-                (serviceFilter === "all" || row.service === serviceFilter),
-            ),
-          );
+          const rows = result.bookings || [];
+          setTotal(result.total || rows.length);
+          setBookings(rows.filter((row) => row.tripPhase === phase));
         }
       })
       .catch(() => {
@@ -166,7 +177,7 @@ export default function MyTripsClient() {
     return () => {
       ignore = true;
     };
-  }, [phase, serviceFilter, user?.id]);
+  }, [phase, serviceFilter, user?.id, submittedQuery, page]);
 
   useEffect(() => {
     setServiceFilter(serviceFromUrl);
@@ -194,6 +205,37 @@ export default function MyTripsClient() {
           Support Center
         </Link>
       </div>
+
+      <form
+        className="account-inline-actions"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setPage(1);
+          setSubmittedQuery(query.trim());
+        }}
+      >
+        <input
+          className="field-input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by PNR or Booking Reference"
+          aria-label="Search by PNR or Booking Reference"
+        />
+        <button className="btn-primary" type="submit" aria-label="Search bookings">Search</button>
+        {submittedQuery ? (
+          <button
+            className="btn-ghost"
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setSubmittedQuery("");
+              setPage(1);
+            }}
+          >
+            Clear Search
+          </button>
+        ) : null}
+      </form>
 
       <div className="trip-tabs" role="tablist" aria-label="Booking service">
         {BOOKING_SERVICES.map((item) => (
@@ -232,8 +274,9 @@ export default function MyTripsClient() {
       ) : bookings.length === 0 ? (
         <section className="checkout-section account-panel">
           <h2 className="checkout-section-title">
-            No {phase}{" "}
-            {serviceFilter === "all" ? "trips" : BOOKING_SERVICES.find((item) => item.id === serviceFilter)?.label.toLowerCase()}
+            {submittedQuery
+              ? "No booking matches that reference"
+              : `No ${phase} ${serviceFilter === "all" ? "trips" : BOOKING_SERVICES.find((item) => item.id === serviceFilter)?.label.toLowerCase()}`}
           </h2>
           <p className="section-copy">
             {serviceFilter === "all"
@@ -256,6 +299,12 @@ export default function MyTripsClient() {
           ))}
         </div>
       )}
+      {total > 20 ? (
+        <div className="account-inline-actions">
+          <button className="btn-ghost" type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+          <button className="btn-ghost" type="button" disabled={page * 20 >= total} onClick={() => setPage((value) => value + 1)}>Next</button>
+        </div>
+      ) : null}
     </AccountShell>
   );
 }

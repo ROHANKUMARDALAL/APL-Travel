@@ -71,7 +71,7 @@ export default function RecentSearches({ service, onRestore }) {
   }
 
   return (
-    <section className="recent-searches" aria-label={service === "transfer" ? "Recent cab searches" : "Recent flight searches"}>
+    <section className="recent-searches" aria-label={service === "transfer" ? "Recent cab searches" : service === "bus" ? "Recent bus searches" : "Recent flight searches"}>
       <p>Recent searches</p>
       <div className="recent-searches-row">
         {items.map((entry) => {

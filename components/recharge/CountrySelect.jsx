@@ -14,7 +14,14 @@ function matches(country, query) {
   return false;
 }
 
-export default function CountrySelect({ countries, value, onChange }) {
+export default function CountrySelect({
+  countries,
+  value,
+  onChange,
+  label = "Country",
+  hideLabel = false,
+  dialOnly = false,
+}) {
   const fieldId = useId();
   const listId = `${fieldId}-list`;
   const rootRef = useRef(null);
@@ -133,14 +140,15 @@ export default function CountrySelect({ countries, value, onChange }) {
 
   return (
     <div className="rch-country" ref={rootRef}>
-      <span className="rch-label" id={fieldId}>Country</span>
+      <span className={`rch-label${hideLabel ? " is-hidden" : ""}`} id={fieldId}>{label}</span>
       <button
         type="button"
-        className={`rch-country-trigger ${open ? "is-open" : ""}`}
+        className={`rch-country-trigger ${open ? "is-open" : ""}${dialOnly ? " is-dial" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        aria-labelledby={fieldId}
+        aria-label={hideLabel ? (dialOnly ? "Dialing code" : label) : undefined}
+        aria-labelledby={hideLabel ? undefined : fieldId}
         ref={triggerRef}
         onClick={() => (open ? closeMenu(false) : openMenu())}
         onKeyDown={(event) => {
@@ -153,8 +161,8 @@ export default function CountrySelect({ countries, value, onChange }) {
           }
         }}
       >
-        <span>{selected ? `${selected.flag} ${selected.name}` : "Choose a country"}</span>
-        {selected ? <strong>{selected.dialCode}</strong> : null}
+        <span>{selected ? (dialOnly ? `${selected.flag} ${selected.dialCode}` : `${selected.flag} ${selected.name}`) : (dialOnly ? "Code" : "Choose a country")}</span>
+        {!dialOnly && selected ? <strong>{selected.dialCode}</strong> : null}
       </button>
       {open ? (
         <div className="rch-country-menu" style={menuStyle || undefined}>
