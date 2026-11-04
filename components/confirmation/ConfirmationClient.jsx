@@ -81,7 +81,7 @@ export default function ConfirmationClient() {
       .then((saved) => {
         const reference = saved?.bookingId || saved?.aplBookingRef;
         if (ignore || !reference) return;
-        const next = { ...current, reference, previousReference: current.reference, accountSaved: true };
+        const next = { ...current, reference, pnr: saved?.pnr || current.pnr || null, confirmationNotice: saved?.confirmationNotice || current.confirmationNotice || null, previousReference: current.reference, accountSaved: true };
         saveConfirmation(next);
         setConfirmation(next);
       })
@@ -187,6 +187,9 @@ export default function ConfirmationClient() {
             <div>
               <p className="field-label">Booking reference</p>
               <p className="confirmation-ref-value">{confirmation.reference}</p>
+              {confirmation.pnr ? <p className="field-label">PNR / Confirmation Reference</p> : null}
+              {confirmation.pnr ? <p className="confirmation-ref-value">{confirmation.pnr}</p> : null}
+              {confirmation.confirmationNotice ? <p className="price-fee-note">{confirmation.confirmationNotice}</p> : null}
             </div>
             <button type="button" className="btn-secondary promo-apply-btn" onClick={copyRef}>
               {copied ? "Copied" : "Copy"}

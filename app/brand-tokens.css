@@ -33,7 +33,6 @@
 }
 
 [data-b2c-theme="MODERN_EXPLORER"] .theme-steps .is-current,
-[data-b2c-theme="LUXURY_ESCAPE"] .utility-bar,
 [data-b2c-theme="LUXURY_ESCAPE"] .lx-cinema,
 [data-b2c-theme="LUXURY_ESCAPE"] .theme-luxury-home .home-service-pills button.is-active {
   background: var(--brand-color-2);

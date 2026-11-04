@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 function toggleId(selected, id, checked) {
   return checked ? selected.filter((value) => value !== id) : [...selected, id];
 }
@@ -9,6 +11,69 @@ const CHIP_TONES = new Set(["0", "1", "morning", "midday", "afternoon", "evening
 function chipClass(id, checked) {
   const tone = CHIP_TONES.has(String(id)) ? `tone-${id}` : "";
   return `filter-chip ${tone} ${checked ? "is-on" : ""}`.trim();
+}
+
+function CollapsibleGroup({ title, active, onReset, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <section className={`bus-filter-group ${open ? "is-open" : ""}`}>
+      <div className="bus-filter-heading">
+        <button type="button" className="bus-filter-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+          <span>{title}</span>
+        </button>
+        {active ? (
+          <button type="button" className="bus-filter-reset" onClick={onReset}>
+            Reset
+          </button>
+        ) : null}
+      </div>
+      <div className="bus-filter-body">
+        <div>{children}</div>
+      </div>
+    </section>
+  );
+}
+
+function CountOptions({ options, selected, onChange, chips = false }) {
+  if (chips) {
+    return (
+      <div className="filter-chips">
+        {options.map((option) => {
+          const checked = selected.includes(option.id);
+          return (
+            <button
+              key={option.id}
+              type="button"
+              className={chipClass(option.id, checked)}
+              aria-pressed={checked}
+              onClick={() => onChange(toggleId(selected, option.id, checked))}
+            >
+              {option.label}
+              {option.count != null ? <em>{option.count}</em> : null}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+  return (
+    <div className="filter-options">
+      {options.map((option) => {
+        const checked = selected.includes(option.id);
+        return (
+          <label key={option.id} className={`filter-check ${checked ? "is-on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onChange(toggleId(selected, option.id, checked))}
+            />
+            <span>{option.label}</span>
+            {option.count != null ? <em className="fr-count">{option.count}</em> : null}
+          </label>
+        );
+      })}
+    </div>
+  );
 }
 
 function CheckboxGroup({ title, options, selected, onChange }) {
@@ -59,6 +124,7 @@ function ChipGroup({ title, options, selected, onChange }) {
 }
 
 function DualRange({ min, max, low, high, onChange, formatValue }) {
+  const [topThumb, setTopThumb] = useState("high");
   const span = Math.max(1, Number(max) - Number(min));
   const safeLow = Math.min(Math.max(low, min), high);
   const safeHigh = Math.max(Math.min(high, max), safeLow);
@@ -67,11 +133,13 @@ function DualRange({ min, max, low, high, onChange, formatValue }) {
 
   function setLow(value) {
     const next = Math.min(Number(value), safeHigh);
+    setTopThumb("low");
     onChange(next, safeHigh);
   }
 
   function setHigh(value) {
     const next = Math.max(Number(value), safeLow);
+    setTopThumb("high");
     onChange(safeLow, next);
   }
 
@@ -89,21 +157,31 @@ function DualRange({ min, max, low, high, onChange, formatValue }) {
         <div className="dual-range-track" />
         <div className="dual-range-fill" style={{ left: `${left}%`, width: `${width}%` }} />
         <input
+          className={topThumb === "low" ? "is-top" : ""}
           type="range"
           min={min}
           max={max}
           step={1}
           value={safeLow}
           aria-label="Minimum price"
+          aria-valuemin={min}
+          aria-valuemax={safeHigh}
+          aria-valuenow={safeLow}
+          aria-valuetext={formatValue(safeLow)}
           onChange={(event) => setLow(event.target.value)}
         />
         <input
+          className={topThumb === "high" ? "is-top" : ""}
           type="range"
           min={min}
           max={max}
           step={1}
           value={safeHigh}
           aria-label="Maximum price"
+          aria-valuemin={safeLow}
+          aria-valuemax={max}
+          aria-valuenow={safeHigh}
+          aria-valuetext={formatValue(safeHigh)}
           onChange={(event) => setHigh(event.target.value)}
         />
       </div>
@@ -125,7 +203,7 @@ export default function FilterPanel({
       <div className="filter-panel-head">
         <h2 className="filter-panel-title">Filters</h2>
         <button type="button" className="filter-clear" onClick={onClear}>
-          Clear
+          {service === "bus" ? "Clear All" : "Clear"}
         </button>
       </div>
 
@@ -258,47 +336,75 @@ export default function FilterPanel({
       ) : null}
 
       {service === "bus" ? (
-        <>
-          <label className="filter-range">
-            <span className="filter-group-title">Max price ({meta.currency})</span>
-            <input
-              type="range"
-              min={meta.priceMin}
-              max={meta.priceMax}
-              value={filters.maxPrice ?? meta.priceMax}
-              onChange={(event) =>
-                onChange({ ...filters, maxPrice: Number(event.target.value) })
-              }
-            />
-            <span className="filter-range-value">
-              Up to {meta.formatPrice(filters.maxPrice ?? meta.priceMax)}
-            </span>
-          </label>
-          <CheckboxGroup
-            title="Departure time"
-            options={meta.departBuckets}
-            selected={filters.departBuckets}
-            onChange={(departBuckets) => onChange({ ...filters, departBuckets })}
-          />
-          <CheckboxGroup
-            title="Arrival time"
-            options={meta.arriveBuckets}
-            selected={filters.arriveBuckets}
-            onChange={(arriveBuckets) => onChange({ ...filters, arriveBuckets })}
-          />
-          <CheckboxGroup
-            title="Operator"
-            options={meta.operators.map((o) => ({ id: o, label: o }))}
-            selected={filters.operators}
-            onChange={(operators) => onChange({ ...filters, operators })}
-          />
-          <CheckboxGroup
-            title="Bus type"
-            options={meta.busTypes.map((t) => ({ id: t, label: t }))}
-            selected={filters.busTypes}
-            onChange={(busTypes) => onChange({ ...filters, busTypes })}
-          />
-        </>
+        <div className="bus-filter">
+          <CollapsibleGroup
+            title="Price range"
+            active={filters.minPrice != null || filters.maxPrice != null}
+            onReset={() => onChange({ ...filters, minPrice: null, maxPrice: null })}
+          >
+            {meta.priceMax > meta.priceMin ? (
+              <DualRange
+                min={meta.priceMin}
+                max={meta.priceMax}
+                low={filters.minPrice ?? meta.priceMin}
+                high={filters.maxPrice ?? meta.priceMax}
+                formatValue={meta.formatPrice}
+                onChange={(minPrice, maxPrice) => onChange({
+                  ...filters,
+                  minPrice: minPrice <= meta.priceMin ? null : minPrice,
+                  maxPrice: maxPrice >= meta.priceMax ? null : maxPrice,
+                })}
+              />
+            ) : (
+              <p className="filter-range-value">{meta.priceMax ? meta.formatPrice(meta.priceMin) : "No fares to filter"}</p>
+            )}
+          </CollapsibleGroup>
+          {meta.departBuckets?.length ? (
+            <CollapsibleGroup
+              title="Departure time"
+              active={filters.departBuckets.length > 0}
+              onReset={() => onChange({ ...filters, departBuckets: [] })}
+            >
+              <CountOptions chips options={meta.departBuckets} selected={filters.departBuckets} onChange={(departBuckets) => onChange({ ...filters, departBuckets })} />
+            </CollapsibleGroup>
+          ) : null}
+          {meta.arriveBuckets?.length ? (
+            <CollapsibleGroup
+              title="Arrival time"
+              active={filters.arriveBuckets.length > 0}
+              onReset={() => onChange({ ...filters, arriveBuckets: [] })}
+            >
+              <CountOptions chips options={meta.arriveBuckets} selected={filters.arriveBuckets} onChange={(arriveBuckets) => onChange({ ...filters, arriveBuckets })} />
+            </CollapsibleGroup>
+          ) : null}
+          {meta.operators?.length ? (
+            <CollapsibleGroup
+              title="Bus operator"
+              active={filters.operators.length > 0}
+              onReset={() => onChange({ ...filters, operators: [] })}
+            >
+              <CountOptions options={meta.operators} selected={filters.operators} onChange={(operators) => onChange({ ...filters, operators })} />
+            </CollapsibleGroup>
+          ) : null}
+          {meta.busTypes?.length ? (
+            <CollapsibleGroup
+              title="Bus type"
+              active={filters.busTypes.length > 0}
+              onReset={() => onChange({ ...filters, busTypes: [] })}
+            >
+              <CountOptions options={meta.busTypes} selected={filters.busTypes} onChange={(busTypes) => onChange({ ...filters, busTypes })} />
+            </CollapsibleGroup>
+          ) : null}
+          {meta.amenities?.length ? (
+            <CollapsibleGroup
+              title="Available amenities"
+              active={(filters.amenities || []).length > 0}
+              onReset={() => onChange({ ...filters, amenities: [] })}
+            >
+              <CountOptions options={meta.amenities} selected={filters.amenities || []} onChange={(amenities) => onChange({ ...filters, amenities })} />
+            </CollapsibleGroup>
+          ) : null}
+        </div>
       ) : null}
 
       {service === "transfer" ? (
@@ -356,16 +462,23 @@ export default function FilterPanel({
       ) : null}
 
       {onClose ? (
-        <button type="button" className="btn-primary filter-apply-mobile" onClick={onClose}>
-          Show results
-        </button>
+        service === "bus" ? (
+          <div className="bus-filter-sheet-actions">
+            <button type="button" className="btn-ghost bus-filter-clear-all" onClick={onClear}>Clear All</button>
+            <button type="button" className="btn-primary filter-apply-mobile" onClick={onClose}>Apply</button>
+          </div>
+        ) : (
+          <button type="button" className="btn-primary filter-apply-mobile" onClick={onClose}>
+            Show results
+          </button>
+        )
       ) : null}
     </div>
   );
 
   return (
     <>
-      <aside className="filter-panel filter-panel-desktop">{content}</aside>
+      <aside className={`filter-panel filter-panel-desktop${service === "bus" ? " is-bus-filter" : ""}`}>{content}</aside>
       {open ? (
         <div className="filter-sheet" role="dialog" aria-modal="true" aria-label="Filters">
           <button type="button" className="filter-sheet-backdrop" aria-label="Close filters" onClick={onClose} />

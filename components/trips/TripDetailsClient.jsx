@@ -318,6 +318,8 @@ function RechargeReceipt({ booking, money }) {
       <dl className="checkout-fact-list">
         <div><dt>Recharge reference</dt><dd>{row.rechargeReference || "—"}</dd></div>
         <div><dt>Booking reference</dt><dd>{booking.reference}</dd></div>
+        <div><dt>{booking.service === "hotel" || booking.service === "transfer" ? "PNR / Confirmation Reference" : "PNR"}</dt><dd>{booking.pnr || "Not stored"}</dd></div>
+        {booking.confirmationNotice ? <div><dt>Notice</dt><dd>{booking.confirmationNotice}</dd></div> : null}
         <div><dt>Mobile</dt><dd>{row.accountMasked || "—"}</dd></div>
         <div><dt>Type</dt><dd>{row.lineType || row.category || "—"}</dd></div>
         <div><dt>Region</dt><dd>{row.circleName || row.country || "—"}</dd></div>

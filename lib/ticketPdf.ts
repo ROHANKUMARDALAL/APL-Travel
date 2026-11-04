@@ -427,7 +427,7 @@ export function ticketFromBooking(
   return {
     filename: `APL-E-Ticket-${sanitize(booking?.reference || "booking") || "booking"}.pdf`,
     reference: String(booking?.reference || "-"),
-    supplierPnr: booking?.supplierPnr ? String(booking.supplierPnr) : "",
+    supplierPnr: booking?.pnr ? String(booking.pnr) : booking?.supplierPnr ? String(booking.supplierPnr) : "",
     status: "TEST / MOCK BOOKING",
     mockBooking: true,
     company: {

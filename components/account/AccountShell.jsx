@@ -16,7 +16,28 @@ const NAV_ITEMS = [
   { id: "referral", label: "Referral Code", href: "/account/referral" },
   { id: "travellers", label: "My traveller list", href: "/account/travellers" },
   { id: "support", label: "Support", href: "/support" },
+  { id: "contact", label: "Contact Us", href: "/account/contact", icon: "mail" },
+  { id: "review", label: "Add Review", href: "/account/add-review", icon: "star" },
 ];
+
+function NavIcon({ name }) {
+  if (name === "mail") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="account-nav-icon">
+        <path d="M4 7h16v10H4z" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M4 8l8 6 8-6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  }
+  if (name === "star") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="account-nav-icon">
+        <path d="M12 4l2.2 4.6 5 .7-3.6 3.5.9 5.1L12 15.8 7.5 18l.9-5.1L4.8 9.3l5-.7z" fill="currentColor" />
+      </svg>
+    );
+  }
+  return null;
+}
 
 function isNavActive(pathname, href) {
   if (href === "/account") return pathname === "/account";
@@ -58,6 +79,7 @@ function AccountNav({ user, pathname, onNavigate, onLogout }) {
               className={`account-nav-link ${active ? "is-active" : ""}`}
               onClick={onNavigate}
             >
+              <NavIcon name={item.icon} />
               {item.label}
             </Link>
           );

@@ -13,8 +13,12 @@ export function LuxuryHomeHero({ branding, slides }) {
   return (
     <section className="lx-cinema" aria-label="Luxury journey">
       {active?.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={active.src} alt={realLabel || ""} />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="lx-fill" src={active.src} alt="" aria-hidden="true" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="lx-photo" src={active.src} alt={realLabel || ""} />
+        </>
       ) : null}
       <div className="lx-shade" />
       <div className="lx-copy">

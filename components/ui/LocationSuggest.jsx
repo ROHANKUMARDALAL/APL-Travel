@@ -22,6 +22,8 @@ export default function LocationSuggest({
   onTextChange,
   onSelect,
   fetchOptions,
+  loadPopular,
+  minQuery = 3,
   emptyHint = "No matches",
 }) {
   const listId = useId();
@@ -29,36 +31,49 @@ export default function LocationSuggest({
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [typedQuery, setTypedQuery] = useState("");
+  const requestRef = useRef(0);
 
   useEffect(() => {
     const query = typedQuery.trim();
-    if (query.length < 3) {
+    if (query.length < minQuery) {
+      if (!query && loadPopular) return undefined;
       setOptions([]);
       setOpen(false);
       setLoading(false);
       return undefined;
     }
 
+    const ticket = requestRef.current + 1;
+    requestRef.current = ticket;
     const timer = setTimeout(async () => {
       setLoading(true);
+      setFailed(false);
       setOpen(true);
       try {
         const next = await fetchOptions(query);
-        setOptions(
-          (next || []).filter((option) =>
-            [option.title, option.code].some((field) => lettersInOrder(field, query)),
-          ),
-        );
+        if (ticket !== requestRef.current) return;
+        const filtered = (next || []).filter((option) => {
+          const fields = [option.title];
+          if (option.code && option.code !== "CITY") fields.push(option.code);
+          if (option.subtitle) fields.push(option.subtitle);
+          return fields.some((field) => lettersInOrder(field, query));
+        });
+        setOptions(filtered);
+        setActiveIndex(0);
       } catch {
+        if (ticket !== requestRef.current) return;
         setOptions([]);
+        setFailed(true);
       } finally {
-        setLoading(false);
+        if (ticket === requestRef.current) setLoading(false);
       }
     }, 220);
 
     return () => clearTimeout(timer);
-  }, [typedQuery, fetchOptions]);
+  }, [typedQuery, fetchOptions, minQuery, loadPopular]);
 
   useEffect(() => {
     function onDocClick(event) {
@@ -83,24 +98,68 @@ export default function LocationSuggest({
         autoComplete="off"
         value={value}
         placeholder={placeholder}
+        onFocus={() => {
+          if (typedQuery.trim().length >= minQuery || !loadPopular) return;
+          const ticket = requestRef.current + 1;
+          requestRef.current = ticket;
+          setLoading(true);
+          setFailed(false);
+          setOpen(true);
+          loadPopular()
+            .then((next) => {
+              if (ticket !== requestRef.current) return;
+              setOptions(next || []);
+              setActiveIndex(0);
+            })
+            .catch(() => {
+              if (ticket !== requestRef.current) return;
+              setOptions([]);
+              setFailed(true);
+            })
+            .finally(() => {
+              if (ticket === requestRef.current) setLoading(false);
+            });
+        }}
+        onKeyDown={(event) => {
+          if (!open || options.length === 0) {
+            if (event.key === "Escape") setOpen(false);
+            return;
+          }
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveIndex((index) => Math.min(options.length - 1, index + 1));
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveIndex((index) => Math.max(0, index - 1));
+          } else if (event.key === "Enter" && options[activeIndex]) {
+            event.preventDefault();
+            onSelect(options[activeIndex]);
+            setOpen(false);
+          } else if (event.key === "Escape") {
+            setOpen(false);
+          }
+        }}
         onChange={(event) => {
           const next = event.target.value;
           onTextChange(next);
           setTypedQuery(next.trim());
         }}
       />
-      {open && typedQuery.trim().length >= 3 ? (
+      {open ? (
         <ul className="location-suggest-list" id={listId} role="listbox">
           {loading ? <li className="location-suggest-empty">Searching…</li> : null}
-          {!loading && options.length === 0 ? (
+          {!loading && failed ? <li className="location-suggest-empty">City search is unavailable</li> : null}
+          {!loading && !failed && options.length === 0 ? (
             <li className="location-suggest-empty">{emptyHint}</li>
           ) : null}
-          {options.map((option) => (
+          {options.map((option, index) => (
             <li key={option.id}>
               <button
                 type="button"
-                className="location-suggest-option"
+                className={`location-suggest-option${index === activeIndex ? " is-active" : ""}`}
                 role="option"
+                aria-selected={index === activeIndex}
+                onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => {
                   onSelect(option);
                   setOpen(false);

@@ -89,20 +89,48 @@ export default function DatePicker({
   useEffect(() => {
     if (!open || !rootRef.current) return;
     const popover = rootRef.current.querySelector<HTMLElement>(".calendar-popover");
-    if (!popover) return;
-    popover.style.left = "0px";
-    popover.style.right = "auto";
-    const overflowRight = popover.getBoundingClientRect().right - window.innerWidth;
-    if (overflowRight > -8) {
-      popover.style.left = "auto";
-      popover.style.right = "0px";
-    }
-    const left = popover.getBoundingClientRect().left;
-    if (left < 8) {
-      const rootLeft = rootRef.current.getBoundingClientRect().left;
-      popover.style.left = `${8 - rootLeft}px`;
+    const trigger = rootRef.current.querySelector<HTMLElement>(".date-picker-trigger");
+    if (!popover || !trigger) return;
+
+    function place() {
+      if (!popover || !trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = popover.offsetWidth;
+      const height = popover.offsetHeight;
+      let left = rect.left;
+      if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+      if (left < 8) left = 8;
+      const below = rect.bottom + 8;
+      const above = rect.top - height - 8;
+      let top = below;
+      if (below + height > window.innerHeight - 8) top = above >= 8 ? above : 8;
+      if (top + height > window.innerHeight - 8) {
+        popover.style.maxHeight = `${Math.max(160, window.innerHeight - top - 8)}px`;
+        popover.style.overflow = "auto";
+      } else {
+        popover.style.maxHeight = "";
+        popover.style.overflow = "";
+      }
+      popover.style.position = "fixed";
+      popover.style.top = `${Math.round(top)}px`;
+      popover.style.left = `${Math.round(left)}px`;
       popover.style.right = "auto";
+      popover.style.bottom = "auto";
+      popover.style.zIndex = "120";
     }
+
+    place();
+    const frame = window.requestAnimationFrame(place);
+    const observer = new ResizeObserver(place);
+    observer.observe(popover);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
   }, [open, yearOpen, monthOpen]);
 
   const minTime = effectiveMin ? effectiveMin.getTime() : null;
@@ -168,9 +196,11 @@ export default function DatePicker({
     if (value) {
       setViewDate(startOfDay(value));
     } else if (effectiveMin && effectiveMax) {
+      const opensFromToday = !isBeforeDay(effectiveMin, today());
       const span = effectiveMax.getFullYear() - effectiveMin.getFullYear();
-      const preferred =
-        span > 20
+      const preferred = opensFromToday
+        ? startOfDay(effectiveMin)
+        : span > 20
           ? startOfDay(new Date(effectiveMax.getFullYear() - 30, effectiveMax.getMonth(), 1))
           : startOfDay(
               new Date(

@@ -121,11 +121,13 @@ function defaultFilters(service) {
     };
   }
   return {
+    minPrice: null,
     maxPrice: null,
     departBuckets: [],
     arriveBuckets: [],
     operators: [],
     busTypes: [],
+    amenities: [],
   };
 }
 
@@ -467,21 +469,51 @@ export default function ResultsPage({ service }) {
       };
     }
 
+    const counted = (values, read) => values.map((id) => ({
+      id,
+      label: id,
+      count: rawItems.filter((item) => read(item) === id).length,
+    }));
+    const amenityNames = [...new Set(rawItems.flatMap((item) => item.amenities || []).filter(Boolean))];
     return {
       currency: displayCurrency,
       priceMin,
       priceMax,
-      operators: [...new Set(rawItems.map((item) => item.operator))],
-      busTypes: [...new Set(rawItems.map((item) => item.busType))],
-      departBuckets: TIME_BUCKETS.filter((b) =>
-        rawItems.some((item) => item.departBucket === b.id),
-      ),
-      arriveBuckets: TIME_BUCKETS.filter((b) =>
-        rawItems.some((item) => item.arriveBucket === b.id),
-      ),
+      operators: counted([...new Set(rawItems.map((item) => item.operator).filter(Boolean))], (item) => item.operator),
+      busTypes: counted([...new Set(rawItems.map((item) => item.busType).filter(Boolean))], (item) => item.busType),
+      amenities: amenityNames.map((id) => ({
+        id,
+        label: id,
+        count: rawItems.filter((item) => (item.amenities || []).includes(id)).length,
+      })),
+      departBuckets: TIME_BUCKETS.filter((bucket) => rawItems.some((item) => item.departBucket === bucket.id))
+        .map((bucket) => ({ ...bucket, count: rawItems.filter((item) => item.departBucket === bucket.id).length })),
+      arriveBuckets: TIME_BUCKETS.filter((bucket) => rawItems.some((item) => item.arriveBucket === bucket.id))
+        .map((bucket) => ({ ...bucket, count: rawItems.filter((item) => item.arriveBucket === bucket.id).length })),
       formatPrice: (n) => formatMoney(n, marketId),
     };
   }, [rawItems, displayCurrency, marketId, service]);
+
+  const sortOptions = useMemo(() => {
+    if (service !== "bus") return SORT_OPTIONS[service];
+    const options = [{ id: "recommended", label: "Recommended" }];
+    const totals = rawItems
+      .map((item) => getPriceParts(item, marketId).total)
+      .filter((value) => Number.isFinite(value));
+    if (totals.length) {
+      options.push({ id: "cheapest", label: "Price: Low to High" });
+      options.push({ id: "expensive", label: "Price: High to Low" });
+    }
+    if (rawItems.some((item) => item.from?.time)) {
+      options.push({ id: "departure", label: "Earliest Departure" });
+    }
+    if (rawItems.some((item) => Number(item.durationMinutes) > 0)) {
+      options.push({ id: "fastest", label: "Shortest Duration" });
+    }
+    return options;
+  }, [service, rawItems, marketId]);
+
+  const activeSort = sortOptions.some((option) => option.id === sort) ? sort : "recommended";
 
   const visibleItems = useMemo(() => {
     let list = rawItems;
@@ -490,23 +522,23 @@ export default function ResultsPage({ service }) {
       if (legIndexes.length) {
         list = legIndexes.flatMap((legIndex) => {
           const group = rawItems.filter((item) => item.legIndex === legIndex);
-          return sortFlights(filterFlights(group, filters, marketId), sort, marketId);
+          return sortFlights(filterFlights(group, filters, marketId), activeSort, marketId);
         });
       } else {
-        list = sortFlights(filterFlights(rawItems, filters, marketId), sort, marketId);
+        list = sortFlights(filterFlights(rawItems, filters, marketId), activeSort, marketId);
       }
     } else if (service === "hotel") {
       list = filterHotels(list, filters, marketId);
-      list = sortHotels(list, sort, marketId);
+      list = sortHotels(list, activeSort, marketId);
     } else if (service === "transfer") {
       list = filterTransfers(list, filters, marketId);
-      list = sortTransfers(list, sort, marketId);
+      list = sortTransfers(list, activeSort, marketId);
     } else {
       list = filterBuses(list, filters, marketId);
-      list = sortBuses(list, sort, marketId);
+      list = sortBuses(list, activeSort, marketId);
     }
     return list;
-  }, [rawItems, filters, sort, service, marketId]);
+  }, [rawItems, filters, activeSort, service, marketId]);
 
   const flightBadgeMap = useMemo(() => {
     if (service !== "flight") return new Map();
@@ -554,7 +586,7 @@ export default function ResultsPage({ service }) {
 
   return (
     <SiteChrome activeService={service}>
-      <div className={`results-page theme-${theme}`}>
+      <div className={`results-page theme-${theme}${service === "bus" ? " results-bus" : ""}`}>
         <div className="container-page results-page-inner">
           {service === "flight" && theme === "MODERN_EXPLORER" ? (
             <div className="results-toolbar" aria-label="Flight timeline">
@@ -641,8 +673,8 @@ export default function ResultsPage({ service }) {
               <SortBar
                 count={status === "ready" ? visibleItems.length : 0}
                 countLabel={service === "flight" ? "flight option" : "result"}
-                sort={sort}
-                options={SORT_OPTIONS[service]}
+                sort={activeSort}
+                options={sortOptions}
                 pills={service === "flight"}
                 onSortChange={setSort}
                 onOpenFilters={() => setFiltersOpen(true)}

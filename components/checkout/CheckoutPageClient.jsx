@@ -684,6 +684,8 @@ export default function CheckoutPageClient() {
         const reference = booked.aplBookingRef;
         saveConfirmation({
           reference,
+          pnr: booked.pnr || null,
+          confirmationNotice: booked.confirmationNotice || null,
           service,
           id: item.id,
           searchQuery: draft.searchQuery,

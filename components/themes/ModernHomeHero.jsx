@@ -40,8 +40,12 @@ export function ModernHomeHero({ branding, slides }) {
       </div>
       <div className="mx-visual">
         {active?.src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={active.src + index} src={active.src} alt={realLabel || ""} />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="mx-fill" src={active.src} alt="" aria-hidden="true" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img key={active.src + index} src={active.src} alt={realLabel || ""} />
+          </>
         ) : null}
         <div className="mx-float mx-float-brand">
           <span>Travel desk</span>

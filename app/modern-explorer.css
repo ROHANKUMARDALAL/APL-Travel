@@ -91,7 +91,8 @@
 
 [data-b2c-theme="MODERN_EXPLORER"] .mx-visual {
   position: relative;
-  min-height: 420px;
+  min-height: 0;
+  aspect-ratio: 32 / 9;
   border-radius: 32px;
   overflow: hidden;
   background:
@@ -102,10 +103,20 @@
 
 [data-b2c-theme="MODERN_EXPLORER"] .mx-visual img {
   width: 100%;
-  height: 420px;
-  object-fit: cover;
+  height: 100%;
+  object-fit: contain;
   display: block;
   animation: mx-fade 700ms ease;
+}
+
+[data-b2c-theme="MODERN_EXPLORER"] .mx-visual .mx-fill {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  filter: blur(16px);
+  transform: scale(1.04);
 }
 
 [data-b2c-theme="MODERN_EXPLORER"] .mx-float {
@@ -347,10 +358,15 @@
 
   [data-b2c-theme="MODERN_EXPLORER"] .mx-title { max-width: none; }
 
-  [data-b2c-theme="MODERN_EXPLORER"] .mx-visual,
+  [data-b2c-theme="MODERN_EXPLORER"] .mx-visual {
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 32 / 9;
+  }
+
   [data-b2c-theme="MODERN_EXPLORER"] .mx-visual img {
-    min-height: 240px;
-    height: 260px;
+    min-height: 0;
+    height: 100%;
   }
 
   [data-b2c-theme="MODERN_EXPLORER"] .theme-modern-home .home-package-grid > .reveal:first-child {
